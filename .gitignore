@@ -8,6 +8,7 @@ CarlaClient/_out
 CarlaClient/CarlaUE4
 CarlaClient/_data
 CarlaClient/Town06
+SUMOServer/simulations
 /CarlaClient/ExportedMaps
 /Import
 /RoadRunnerFiles/*/
@@ -18,6 +19,7 @@ CarlaClient/Town06
 *.egg-info
 *.kdev4
 *.log
+*.sumo.tr
 *.o
 *.pb.cc
 *.pb.h
