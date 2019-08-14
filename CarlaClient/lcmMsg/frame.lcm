@@ -1,0 +1,20 @@
+package lidar;
+struct pointcloud
+{
+    float x;
+    float y;
+    float z;
+}
+
+struct lidarframe
+{
+    float data[130000][3];
+    int64_t number;
+    float dx;
+    float dy;
+    float dz;
+    float pitch;
+    float roll;
+    float yaw;
+    int64_t frameid;
+}

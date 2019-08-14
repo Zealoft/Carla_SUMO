@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 04/24/19 23:57:59 by Eclipse SUMO GUI Version 1.2.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="Tongji_Demo/map.net.xml"/>
+        <route-files value="Tongji_Demo/map.rou.xml"/>
+        <additional-files value="Tongji_Demo/map.poly.xml"/>
+    </input>
+
+    <output>
+        <netstate-dump value="Tongji_Demo/map.sumo.tr"/>
+        <tripinfo-output value="Tongji_Demo/output-tripinfos.xml"/>
+        <vehroute-output value="Tongji_Demo/output-vehroutes.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="1000"/>
+    </time>
+
+    <traci_server>
+        <remote-port value="64472"/>
+    </traci_server>
+
+</configuration>
+-->
+
+<netstate xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netstate_file.xsd">
+</netstate>
