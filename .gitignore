@@ -12,7 +12,7 @@ SUMOServer/simulations
 /CarlaClient/ExportedMaps
 /Import
 /RoadRunnerFiles/*/
-
+*.swp
 *.VC.db
 *.VC.opendb
 *.a
@@ -20,6 +20,7 @@ SUMOServer/simulations
 *.kdev4
 *.log
 *.sumo.tr
+*.tr
 *.o
 *.pb.cc
 *.pb.h
