@@ -9,6 +9,7 @@ CarlaClient/CarlaUE4
 CarlaClient/_data
 CarlaClient/Town06
 SUMOServer/simulations
+SUMOServer/zcm
 /CarlaClient/ExportedMaps
 /Import
 /0.9.6_New
