@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on Fri Aug 30 10:28:28 2019 by Eclipse SUMO polyconvert Version 1.2.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/polyconvertConfiguration.xsd">
+
+    <input>
+        <net-file value="simulations/Town05/Town05.net.xml"/>
+        <type-file value="simulations/typemap.xml"/>
+    </input>
+
+    <output>
+        <output-file value="simulations/Town05/Town05.poly.xml"/>
+    </output>
+
+</configuration>
+-->
+
+<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
+</additional>

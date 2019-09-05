@@ -68,6 +68,8 @@ except ImportError:
 # ==============================================================================
 try:
     sys.path.append('/home/autolab/0.9.4/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+
+    # sys.path.append('/home/autolab/zwh/SUMO_Carla/CarlaClient/PythonAPI/carla-0.9.6-py3.5-linux-x86_64.egg')
     sys.path.append(glob.glob('**/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
         sys.version_info.minor,
@@ -618,7 +620,7 @@ action_result_keyword = "action_result"
 
 
 class Game_Loop:
-    def __init__(self):
+    def __init__(self, args):
         self.init_waypoint = None
         self.veh_id = None
         self.init = False
@@ -626,16 +628,21 @@ class Game_Loop:
         self.finish_current_action = False
         self.message_waypoints = 3
         self.agent = None
+        self.world = None
+        self.args = args
         self.lc = lcm.LCM()
         self.msg_queue = Queue()
         self.waypoints_buffer = deque(maxlen=600)
+        self.init_controller()
+    
+    # 进一步对各类成员进行初始化工作
+    def init_controller(self):
         self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
         self.lc.subscribe(action_package_keyword, self.action_package_handler)
         self.t = threading.Thread(target=self.message_listen_process, name='MessageListenThread')
         # 将子线程设置为守护线程，在主线程退出后自动退出
         self.t.setDaemon(True)
         self.t.start()
-        
     
     # 监听线程需要执行的过程，仅需要监听LCM消息并将消息放入消息队列等待主线程处理即可
     def message_listen_process(self):
@@ -647,6 +654,15 @@ class Game_Loop:
     # inside one handler function!
     def message_handler(self, channel, data): 
         pass 
+
+    # from carla transform to lcm waypoint
+    def transform_to_lcm_waypoint(self, transform):
+        lcm_waypoint = Waypoint()
+        lcm_waypoint.Location = [transform.location.x, -1 * transform.location.y, transform.location.z]
+        lcm_waypoint.Rotation = [transform.rotation.pitch, transform.rotation.yaw, transform.rotation.roll]
+        print("lcm waypoint location: ", lcm_waypoint.Location)
+
+        return lcm_waypoint
     
     def transform_waypoint(self, lcm_waypoint):
         """
@@ -655,7 +671,7 @@ class Game_Loop:
         """
         new_waypoint = carla.libcarla.Transform()
         new_waypoint.location.x = lcm_waypoint.Location[0]
-        new_waypoint.location.y = lcm_waypoint.Location[1]
+        new_waypoint.location.y = -1 * lcm_waypoint.Location[1]
         new_waypoint.location.z = lcm_waypoint.Location[2]
         new_waypoint.rotation.pitch = lcm_waypoint.Rotation[0]
         new_waypoint.rotation.yaw = lcm_waypoint.Rotation[1]
@@ -697,59 +713,57 @@ class Game_Loop:
         self.msg_queue.put(que_element)
     
     def connect_response_dealer(self, msg):
-        self.init_waypoint = msg.init_pos
-        print("init waypoint location: ", self.init_waypoint.Location)
-        print("init waypoint rotation: ", self.init_waypoint.Rotation)
         self.veh_id = msg.vehicle_id
         print("veh id: ", self.veh_id)
         self.init = True
+    
+    
 
-    def game_loop(self, args):
+    def game_loop(self):
         pygame.init()
         pygame.font.init()
         world = None
         try:
-            msg = connect_request()
-            self.lc.publish(connect_request_keyword, msg.encode())
-            print("waiting for connect response...")
-            # 在这里等待接收初始化车辆位置的报文
-            while True:
-                try:
-                    [keyword, msg] = self.msg_queue.get(timeout=5.0)
-                    # print("keyword of message is ", keyword)
-                    if keyword != connect_response_keyword:
-                        continue
-                    self.connect_response_dealer(msg)
-                    break
-                except queue.Empty:
-                    pass
-            client = carla.Client(args.host, args.port)
+            
+            
+            client = carla.Client(self.args.host, self.args.port)
             client.set_timeout(4.0)
 
             display = pygame.display.set_mode(
-                (args.width, args.height),
+                (self.args.width, self.args.height),
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
 
-            hud = HUD(args.width, args.height)
+            hud = HUD(self.args.width, self.args.height)
             world = World(client.get_world(), hud)
+            # dao = GlobalRoutePlannerDAO(world.map)
+            # grp = GlobalRoutePlanner(dao)
+            # grp.setup()
             controller = KeyboardControl(world, False)
-            spawn_point = self.transform_waypoint(self.init_waypoint)
-            print("spawn_point: ", spawn_point)
-            world.vehicle.set_location(spawn_point.location)
+            # spawn_point = self.transform_waypoint(self.init_waypoint)
+            # print("spawn_point: ", spawn_point)
+            # world.vehicle.set_location(spawn_point.location)
             clock = pygame.time.Clock()
             
             # print("location: ", world.vehicle.get_location())
-            if args.agent == "Roaming":
+            if self.args.agent == "Roaming":
                 # print("Roaming!")
                 self.agent = RoamingAgent(world.vehicle)
             else:
                 self.agent = BasicAgent(world.vehicle)
-                # spawn_point = world.map.get_spawn_points()[0]
+                spawn_point = world.map.get_spawn_points()[0]
                 print(spawn_point)
                 self.agent.set_destination((spawn_point.location.x,
                                     spawn_point.location.y,
                                     spawn_point.location.z))
             self.agent.drop_waypoint_buffer()
+            # 在这里发送车辆初始位置给服务器
+            # print("location: ", world.vehicle.get_transform())
+
+            init_lcm_waypoint = self.transform_to_lcm_waypoint(world.vehicle.get_transform())
+            connect_request_msg = connect_request()
+            connect_request_msg.init_pos = init_lcm_waypoint
+            self.lc.publish(connect_request_keyword, connect_request_msg.encode())
+            print("connect request message publish done")
             # clock = pygame.time.Clock()
             # print(len(client.get_world().get_map().get_spawn_points()))
             # pre_loc = [0.0, 0.0, 0.0]
@@ -782,10 +796,12 @@ class Game_Loop:
                         
                         # print("waypoint length: ", len(self.waypoints_buffer))
                         while len(self.waypoints_buffer) > 0:
-                            waypoint = self.waypoints_buffer.popleft()
-                            print("waypoint in main loop is ", waypoint)
-                            self.agent.add_waypoint(waypoint)
-                        
+                            temp_waypoint = self.waypoints_buffer.popleft()
+                            print("waypoint in main loop is ", temp_waypoint)
+                            
+                            self.agent.add_waypoint(temp_waypoint)
+                    elif keyword == connect_response_keyword:
+                        self.connect_response_dealer(msg)
                     else:
                         pass
                 except queue.Empty:
@@ -802,7 +818,7 @@ class Game_Loop:
                     action_res_pack = action_result()
                     action_res_pack.current_pos.Location = [
                         current_transform.location.x,
-                        current_transform.location.y,
+                        -1 * current_transform.location.y,
                         current_transform.location.z]
                     action_res_pack.current_pos.Rotation = [
                         current_transform.rotation.pitch,
@@ -897,9 +913,9 @@ def main():
     logging.info('listening to server %s:%s', args.host, args.port)
 
     print(__doc__)
-    main_loop = Game_Loop()
+    main_loop = Game_Loop(args)
     try:
-        main_loop.game_loop(args)
+        main_loop.game_loop()
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')

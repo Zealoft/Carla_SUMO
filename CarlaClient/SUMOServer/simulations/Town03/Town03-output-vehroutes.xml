@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on Thu Sep  5 13:18:27 2019 by Eclipse SUMO Version 1.2.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+
+    <input>
+        <net-file value="simulations/Town03/Town03.net.xml"/>
+        <route-files value="simulations/Town03/Town03.rou.xml"/>
+        <additional-files value="simulations/Town03/Town03.poly.xml"/>
+    </input>
+
+    <output>
+        <netstate-dump value="simulations/Town03/Town03.sumo.tr"/>
+        <tripinfo-output value="simulations/Town03/Town03-output-tripinfos.xml"/>
+        <vehroute-output value="simulations/Town03/Town03-output-vehroutes.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="1000"/>
+    </time>
+
+    <traci_server>
+        <remote-port value="42301"/>
+    </traci_server>
+
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vehicle id="4" depart="4.00" arrival="22.00">
+        <route edges="-3.0.00 -64.0.00"/>
+    </vehicle>
+
+    <vehicle id="2" depart="2.00" arrival="26.00">
+        <route edges="-70.0.00 -53.0.00 -54.0.00 -84.0.00 -85.0.00 -62.0.00"/>
+    </vehicle>
+
+    <vehicle id="10" depart="10.00" arrival="31.00">
+        <route edges="-7.0.00 -8.0.00 35.0.00 15.0.00 -29.0.00"/>
+    </vehicle>
+
+    <vehicle id="15" depart="15.00" arrival="51.00">
+        <route edges="23.0.00 22.0.00 21.0.00 64.0.00 63.0.00 -86.0.00 -13.0.00 -14.0.00"/>
+    </vehicle>
+
+    <vehicle id="23" depart="26.00" arrival="54.00">
+        <route edges="71.0.00"/>
+    </vehicle>
+
+    <vehicle id="29" depart="29.00" arrival="56.00">
+        <route edges="-71.0.00"/>
+    </vehicle>
+
+    <vehicle id="0" depart="0.00" arrival="59.00">
+        <route edges="3.0.00 -20.0.00 -21.0.00 -22.0.00 -23.0.00 -24.0.00 -32.0.00 -33.0.00 -34.0.00 -72.0.00"/>
+    </vehicle>
+
+    <vehicle id="33" depart="33.00" arrival="59.00">
+        <route edges="2.0.00 1.0.00 -46.0.00 -18.0.00"/>
+    </vehicle>
+
+    <vehicle id="12" depart="12.00" arrival="63.00">
+        <route edges="-48.0.00 -8.0.00 35.0.00 15.0.00 -29.0.00 -30.0.00 1.0.00 -46.0.00 -47.0.00"/>
+    </vehicle>
+
+    <vehicle id="40" depart="40.00" arrival="65.00">
+        <route edges="-29.0.00 -30.0.00 -2.0.00"/>
+    </vehicle>
+
+    <vehicle id="manual_vehicle_0" depart="0.00" arrival="71.00">
+        <route edges=":299_7 -5.0.00 -6.0.00 82.0.00 81.0.00"/>
+    </vehicle>
+
+</routes>

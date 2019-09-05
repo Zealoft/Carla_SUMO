@@ -9,15 +9,17 @@ except ImportError:
     from io import BytesIO
 import struct
 
+import npc_control.Waypoint
+
 class connect_request(object):
-    __slots__ = []
+    __slots__ = ["init_pos"]
 
-    __typenames__ = []
+    __typenames__ = ["npc_control.Waypoint"]
 
-    __dimensions__ = []
+    __dimensions__ = [None]
 
     def __init__(self):
-        pass
+        self.init_pos = npc_control.Waypoint()
 
     def encode(self):
         buf = BytesIO()
@@ -26,7 +28,8 @@ class connect_request(object):
         return buf.getvalue()
 
     def _encode_one(self, buf):
-        pass
+        assert self.init_pos._get_packed_fingerprint() == npc_control.Waypoint._get_packed_fingerprint()
+        self.init_pos._encode_one(buf)
 
     def decode(data):
         if hasattr(data, 'read'):
@@ -40,13 +43,15 @@ class connect_request(object):
 
     def _decode_one(buf):
         self = connect_request()
+        self.init_pos = npc_control.Waypoint._decode_one(buf)
         return self
     _decode_one = staticmethod(_decode_one)
 
     _hash = None
     def _get_hash_recursive(parents):
         if connect_request in parents: return 0
-        tmphash = (0x12345678) & 0xffffffffffffffff
+        newparents = parents + [connect_request]
+        tmphash = (0x6e6998c81d5f83d2+ npc_control.Waypoint._get_hash_recursive(newparents)) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)

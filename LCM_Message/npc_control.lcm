@@ -1,0 +1,36 @@
+package npc_control;
+
+struct Waypoint
+{
+    double Location[3];
+    double Rotation[3];
+}
+
+struct connect_request
+{
+    Waypoint init_pos;
+}
+
+struct connect_response
+{
+    string vehicle_id;
+}
+
+struct action_package
+{
+    string vehicle_id;
+    Waypoint waypoints[10];
+    double target_speed[3];
+}
+
+struct action_result
+{
+    string vehicle_id;
+    Waypoint current_pos;
+    double current_speed[3];
+}
+
+struct end_connection
+{
+    string vehicle_id;
+}

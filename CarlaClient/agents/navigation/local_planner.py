@@ -191,6 +191,10 @@ class LocalPlanner(object):
 
         # new_point = self._map.get_waypoint(waypoint)
         new_point = self._map.get_waypoint(waypoint.location)
+        # print("point lane type:", type(new_point.lane_type))
+        # new_point = new_point.get_left_lane().get_left_lane()
+        # new_point.
+        # print("new fucking waypoint: ", new_point)
         # print("type of new point: ", type(new_point))
         # new_point = carla.Waypoint()
         #print("self.current_waypoint: ", self._current_waypoint)
@@ -204,6 +208,7 @@ class LocalPlanner(object):
         # new_point.transform.rotation.yaw = waypoint.rotation.yaw
         # new_point.transform.rotation.roll = waypoint.rotation.roll
         road_option = compute_connection(self._current_waypoint, new_point)
+        # print("fucking road option: ", road_option)
         # print("new point: ", new_point)
         self._waypoints_queue.append((new_point, road_option))
         # wp, _ = self._waypoints_queue[-1]
@@ -314,11 +319,12 @@ class LocalPlanner(object):
             if distance < self._min_distance:
                 print("waypoint in enumerate is ", waypoint)
                 max_index = i
-                self.finished_waypoints += 1
-                print("current finished waypoints is ", self.finished_waypoints)
+                
         if max_index >= 0:
             for i in range(max_index + 1):
                 self._waypoint_buffer.popleft()
+                self.finished_waypoints += 1
+                print("current finished waypoints is ", self.finished_waypoints)
 
             if debug:
                 draw_waypoints(self._vehicle.get_world(), [self._target_waypoint], self._vehicle.get_location().z + 1.0)

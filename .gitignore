@@ -11,6 +11,11 @@ CarlaClient/Town06
 SUMOServer/simulations
 /CarlaClient/ExportedMaps
 /Import
+/0.9.6_New
+/0.9.6_New/CarlaUE4
+/0.9.6_New/Import
+/0.9.6_New/Engine
+/0.9.6_New/HDMaps
 /RoadRunnerFiles/*/
 *.swp
 *.VC.db
@@ -50,4 +55,4 @@ _out*
 _site
 core
 profiler.csv
-
+*.tar.gz
