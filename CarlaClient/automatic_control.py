@@ -650,6 +650,10 @@ class Game_Loop:
     def message_listen_process(self):
         while True:
             self.lc.handle()
+    # @TODO 需要实现的代码 如果一段时间未发送action_package则发送suspend_package
+    # 通知服务器停止该辆车的仿真
+    def send_suspend_process(self):
+        pass
     # callback function when receiving messages. 
     # We only need to put the message data into the message queue.
     # However, there seems to be no method to deal with all kinds of messages 
@@ -734,9 +738,6 @@ class Game_Loop:
 
             hud = HUD(self.args.width, self.args.height)
             world = World(client.get_world(), hud)
-            # dao = GlobalRoutePlannerDAO(world.map)
-            # grp = GlobalRoutePlanner(dao)
-            # grp.setup()
             controller = KeyboardControl(world, False)
             # spawn_point = self.transform_waypoint(self.init_waypoint)
             # print("spawn_point: ", spawn_point)
@@ -841,24 +842,6 @@ class Game_Loop:
                     ]
                     self.lc.publish(action_result_keyword, action_res_pack.encode())
                     should_publish_result_msg = False
-
-                # print("waypoint in self waypoints_buffer is ", waypoint)
-
-                # current_loc = world.vehicle.get_location()
-                
-                # if current_loc.x == pre_loc[0] and current_loc.y == pre_loc[1] and current_loc.z == pre_loc[2]:
-                #     continue
-                # print(current_loc)
-                # pre_loc = [current_loc.x, current_loc.y, current_loc.z]
-                # 速度是一个三维分量
-                # print("speed: ", world.vehicle.get_velocity())
-                
-                # time.sleep(1)
-                # action_res = action_result()
-                # action_res.current_pos.Location = [current_loc.x, current_loc.y, current_loc.z]
-                # action_res.vehicle_id = self.veh_id
-                # action_res.current_speed = 
-                # self.lc.publish(action_result_keyword, action_res.encode())
 
         finally:
             if world is not None:

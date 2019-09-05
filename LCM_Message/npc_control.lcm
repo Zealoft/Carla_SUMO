@@ -34,3 +34,8 @@ struct end_connection
 {
     string vehicle_id;
 }
+
+struct suspend_simulation
+{
+    string vehicle_id;
+}
