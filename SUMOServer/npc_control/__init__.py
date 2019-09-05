@@ -8,3 +8,4 @@ from .connect_request import connect_request
 from .connect_response import connect_response
 from .action_package import action_package
 from .action_result import action_result
+from .end_connection import end_connection

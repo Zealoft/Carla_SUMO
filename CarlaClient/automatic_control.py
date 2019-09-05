@@ -606,7 +606,7 @@ class CameraManager(object):
 import lcm
 # 使用多线程的方法来监听LCM消息
 import threading, time
-from npc_control import connect_request, connect_response, Waypoint, action_result, action_package
+from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection
 from collections import deque
 # 线程安全的队列实现
 from queue import Queue
@@ -615,6 +615,7 @@ connect_request_keyword = "connect_request"
 connect_response_keyword = "connect_response"
 action_package_keyword = "action_package"
 action_result_keyword = "action_result"
+end_connection_keyword = "end_connection"
 
 
 
@@ -639,6 +640,7 @@ class Game_Loop:
     def init_controller(self):
         self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
         self.lc.subscribe(action_package_keyword, self.action_package_handler)
+        self.lc.subscribe(end_connection_keyword, self.end_connection_dealer)
         self.t = threading.Thread(target=self.message_listen_process, name='MessageListenThread')
         # 将子线程设置为守护线程，在主线程退出后自动退出
         self.t.setDaemon(True)
@@ -676,15 +678,6 @@ class Game_Loop:
         new_waypoint.rotation.pitch = lcm_waypoint.Rotation[0]
         new_waypoint.rotation.yaw = lcm_waypoint.Rotation[1]
         new_waypoint.rotation.roll = lcm_waypoint.Rotation[2]
-        #print("transformed waypoint: ", new_waypoint)
-        # new_waypoint.rotation.pitch = lcm_waypoint.Rotation[0]
-        # if lcm_waypoint.Rotation[1] > 88.0 and lcm_waypoint.Rotation[1] <= 92.0:
-        #     new_waypoint.yaw = lcm_waypoint.Rotation[1] + 90.0
-        # elif lcm_waypoint.Rotation[1] > 178.0 and lcm_waypoint.Rotation[1] < 182.0:
-        #     new_waypoint.yaw = lcm_waypoint.Rotation[1] - 90.0
-        # else:
-        #     new_waypoint.yaw = lcm_waypoint.Rotation[1] - 90.0
-        # new_waypoint.roll = lcm_waypoint.Rotation[2]
         return new_waypoint
     def action_package_handler(self, channel, data):
         msg = action_package.decode(data)
@@ -716,6 +709,12 @@ class Game_Loop:
         self.veh_id = msg.vehicle_id
         print("veh id: ", self.veh_id)
         self.init = True
+
+    def end_connection_dealer(self, channel, data):
+        msg = end_connection.decode(data)
+        print('receive message on channel ', channel)
+        que_element = [end_connection_keyword, msg]
+        self.msg_queue.put(que_element)
     
     
 
@@ -802,6 +801,14 @@ class Game_Loop:
                             self.agent.add_waypoint(temp_waypoint)
                     elif keyword == connect_response_keyword:
                         self.connect_response_dealer(msg)
+                    elif keyword == end_connection_keyword:
+                        if msg.vehicle_id != self.veh_id:
+                            print("invalid vehicle id from end connection package")
+                        else:
+                            print("simulation of this vehicle ended. Destroying ego.")
+                            if world is not None:
+                                world.destroy()
+                            return
                     else:
                         pass
                 except queue.Empty:

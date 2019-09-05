@@ -6,7 +6,7 @@ import subprocess
 import time
 import lcm
 import argparse
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection
 from xml_reader import XML_Tree
 
 const_speed = 0x40
@@ -29,6 +29,7 @@ vehicle_id_prefix = "manual_vehicle_"
 connect_request_keyword = "connect_request"
 connect_response_keyword = "connect_response"
 action_package_keyword = "action_package"
+end_connection_keyword = "end_connection"
 
 basic_vehicle_info = (const_2d_position, const_route_id, const_edge_id, const_lane_id)
 
@@ -97,7 +98,7 @@ class traci_simulator:
             lcm_waypoint.Rotation = [0.0, traci_angle, 0.0]
             return lcm_waypoint
         except traci.exceptions.TraCIException:
-            print("traci exception during getting vehicle info")
+            # print("traci exception during getting vehicle info")
             return None
 
     # function called to select a random edge from file routes.
@@ -231,7 +232,10 @@ class traci_simulator:
             print("traci lane: ", lane)
             # print("lane: ", int(lane), ", edge: ", int(edge))
         except traci.exceptions.TraCIException:
-            print("traci exception during getting vehicle info")
+            print("vehicle simulation ended.")
+            end_pack = end_connection()
+            end_pack.vehicle_id = msg.vehicle_id
+            self.lc.publish(end_connection_keyword, end_pack.encode())
             return
         try:
             traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, res_position[0], res_position[1], keepRoute=1)
@@ -244,7 +248,11 @@ class traci_simulator:
             traci.simulationStep()
             temp_point = self.transform_SUMO_to_LCM_Waypoint(msg.vehicle_id)
             if temp_point is None:
-                pass
+                print("vehicle simulation ended.")
+                end_pack = end_connection()
+                end_pack.vehicle_id = msg.vehicle_id
+                self.lc.publish(end_connection_keyword, end_pack.encode())
+                return
             next_action.waypoints[i] = temp_point
             
             # print("#",i, " position: ", traci.vehicle.getPosition(msg.vehicle_id))
