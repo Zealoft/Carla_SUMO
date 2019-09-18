@@ -9,15 +9,18 @@ except ImportError:
     from io import BytesIO
 import struct
 
+import npc_control.Waypoint
+
 class suspend_simulation(object):
-    __slots__ = ["vehicle_id"]
+    __slots__ = ["vehicle_id", "current_pos"]
 
-    __typenames__ = ["string"]
+    __typenames__ = ["string", "npc_control.Waypoint"]
 
-    __dimensions__ = [None]
+    __dimensions__ = [None, None]
 
     def __init__(self):
         self.vehicle_id = ""
+        self.current_pos = npc_control.Waypoint()
 
     def encode(self):
         buf = BytesIO()
@@ -30,6 +33,8 @@ class suspend_simulation(object):
         buf.write(struct.pack('>I', len(__vehicle_id_encoded)+1))
         buf.write(__vehicle_id_encoded)
         buf.write(b"\0")
+        assert self.current_pos._get_packed_fingerprint() == npc_control.Waypoint._get_packed_fingerprint()
+        self.current_pos._encode_one(buf)
 
     def decode(data):
         if hasattr(data, 'read'):
@@ -45,13 +50,15 @@ class suspend_simulation(object):
         self = suspend_simulation()
         __vehicle_id_len = struct.unpack('>I', buf.read(4))[0]
         self.vehicle_id = buf.read(__vehicle_id_len)[:-1].decode('utf-8', 'replace')
+        self.current_pos = npc_control.Waypoint._decode_one(buf)
         return self
     _decode_one = staticmethod(_decode_one)
 
     _hash = None
     def _get_hash_recursive(parents):
         if suspend_simulation in parents: return 0
-        tmphash = (0xd77125401457135d) & 0xffffffffffffffff
+        newparents = parents + [suspend_simulation]
+        tmphash = (0xec6ad11371ef8dc9+ npc_control.Waypoint._get_hash_recursive(newparents)) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)

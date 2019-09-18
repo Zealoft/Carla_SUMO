@@ -8,11 +8,11 @@ struct Waypoint
 
 struct connect_request
 {
-    Waypoint init_pos;
 }
 
 struct connect_response
 {
+    Waypoint init_pos;
     string vehicle_id;
 }
 
@@ -38,4 +38,5 @@ struct end_connection
 struct suspend_simulation
 {
     string vehicle_id;
+    Waypoint current_pos;
 }

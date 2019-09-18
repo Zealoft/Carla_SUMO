@@ -317,7 +317,7 @@ class LocalPlanner(object):
             # time.sleep(2)
             # 当前车辆和路点的距离小于最小距离，认为已经行驶完成
             if distance < self._min_distance:
-                print("waypoint in enumerate is ", waypoint)
+                # print("waypoint in enumerate is ", waypoint)
                 max_index = i
                 
         if max_index >= 0:

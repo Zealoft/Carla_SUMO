@@ -9,14 +9,17 @@ except ImportError:
     from io import BytesIO
 import struct
 
+import npc_control.Waypoint
+
 class connect_response(object):
-    __slots__ = ["vehicle_id"]
+    __slots__ = ["init_pos", "vehicle_id"]
 
-    __typenames__ = ["string"]
+    __typenames__ = ["npc_control.Waypoint", "string"]
 
-    __dimensions__ = [None]
+    __dimensions__ = [None, None]
 
     def __init__(self):
+        self.init_pos = npc_control.Waypoint()
         self.vehicle_id = ""
 
     def encode(self):
@@ -26,6 +29,8 @@ class connect_response(object):
         return buf.getvalue()
 
     def _encode_one(self, buf):
+        assert self.init_pos._get_packed_fingerprint() == npc_control.Waypoint._get_packed_fingerprint()
+        self.init_pos._encode_one(buf)
         __vehicle_id_encoded = self.vehicle_id.encode('utf-8')
         buf.write(struct.pack('>I', len(__vehicle_id_encoded)+1))
         buf.write(__vehicle_id_encoded)
@@ -43,6 +48,7 @@ class connect_response(object):
 
     def _decode_one(buf):
         self = connect_response()
+        self.init_pos = npc_control.Waypoint._decode_one(buf)
         __vehicle_id_len = struct.unpack('>I', buf.read(4))[0]
         self.vehicle_id = buf.read(__vehicle_id_len)[:-1].decode('utf-8', 'replace')
         return self
@@ -51,7 +57,8 @@ class connect_response(object):
     _hash = None
     def _get_hash_recursive(parents):
         if connect_response in parents: return 0
-        tmphash = (0xd77125401457135d) & 0xffffffffffffffff
+        newparents = parents + [connect_response]
+        tmphash = (0x58d1b975e94cea93+ npc_control.Waypoint._get_hash_recursive(newparents)) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)

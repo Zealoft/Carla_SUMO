@@ -606,7 +606,7 @@ class CameraManager(object):
 import lcm
 # 使用多线程的方法来监听LCM消息
 import threading, time
-from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection
+from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation
 from collections import deque
 # 线程安全的队列实现
 from queue import Queue
@@ -616,6 +616,7 @@ connect_response_keyword = "connect_response"
 action_package_keyword = "action_package"
 action_result_keyword = "action_result"
 end_connection_keyword = "end_connection"
+suspend_simulation_keyword = "suspend_simulation"
 
 
 
@@ -633,6 +634,9 @@ class Game_Loop:
         self.args = args
         self.lc = lcm.LCM()
         self.msg_queue = Queue()
+        # 线程安全的队列用来存储当前发送action_result的个数
+        # self.action_result_count = Queue()
+        self.action_result_count = 0
         self.waypoints_buffer = deque(maxlen=600)
         self.init_controller()
     
@@ -641,25 +645,36 @@ class Game_Loop:
         self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
         self.lc.subscribe(action_package_keyword, self.action_package_handler)
         self.lc.subscribe(end_connection_keyword, self.end_connection_dealer)
-        self.t = threading.Thread(target=self.message_listen_process, name='MessageListenThread')
+        self.message_listener = threading.Thread(target=self.message_listen_process, name='MessageListenThread')
         # 将子线程设置为守护线程，在主线程退出后自动退出
-        self.t.setDaemon(True)
-        self.t.start()
+        self.message_listener.setDaemon(True)
+        self.message_listener.start()
+        self.suspend_simulation_dealer = threading.Thread(target=self.suspend_simulation_control_process, name='SuspendSimulationThread')
+        self.suspend_simulation_dealer.setDaemon(True)
+        self.suspend_simulation_dealer.start()
     
     # 监听线程需要执行的过程，仅需要监听LCM消息并将消息放入消息队列等待主线程处理即可
     def message_listen_process(self):
         while True:
             self.lc.handle()
-    # @TODO 需要实现的代码 如果一段时间未发送action_package则发送suspend_package
-    # 通知服务器停止该辆车的仿真
-    def send_suspend_process(self):
-        pass
-    # callback function when receiving messages. 
-    # We only need to put the message data into the message queue.
-    # However, there seems to be no method to deal with all kinds of messages 
-    # inside one handler function!
-    def message_handler(self, channel, data): 
-        pass 
+
+    # 通过监听一段时间内发送action_result的个数来判断是否需要发送suspend_simulation
+    def suspend_simulation_control_process(self):
+        local_result_count = 0
+        listening_interval = 5
+        while True:
+            # 每隔若干秒查看一次
+            time.sleep(listening_interval)
+            print("action result count: ", self.action_result_count)
+            if local_result_count == self.action_result_count and local_result_count != 0:
+                print("no action result sent in ", listening_interval, " seconds, sending suspend simulation package.")
+                suspend = suspend_simulation()
+                suspend.vehicle_id = self.veh_id
+                suspend.current_pos = self.transform_to_lcm_waypoint(self.world.vehicle.get_transform())
+                self.lc.publish(suspend_simulation_keyword, suspend.encode())
+            else:
+                local_result_count = self.action_result_count
+
 
     # from carla transform to lcm waypoint
     def transform_to_lcm_waypoint(self, transform):
@@ -685,6 +700,8 @@ class Game_Loop:
         return new_waypoint
     def action_package_handler(self, channel, data):
         msg = action_package.decode(data)
+        if msg.vehicle_id != self.veh_id:
+            return
         print('receive message on channel ', channel)
         # print('type of this message: ', type(msg))
         que_element = [action_package_keyword, msg]
@@ -704,6 +721,8 @@ class Game_Loop:
         
     def connect_response_handler(self, channel, data):
         msg = connect_response.decode(data)
+        if self.init:
+            return
         print('receive message on channel ', channel)
         # print('type of this message: ', type(msg))
         que_element = [connect_response_keyword, msg]
@@ -712,6 +731,7 @@ class Game_Loop:
     def connect_response_dealer(self, msg):
         self.veh_id = msg.vehicle_id
         print("veh id: ", self.veh_id)
+        self.init_waypoint = msg.init_pos
         self.init = True
 
     def end_connection_dealer(self, channel, data):
@@ -725,7 +745,7 @@ class Game_Loop:
     def game_loop(self):
         pygame.init()
         pygame.font.init()
-        world = None
+        # world = None
         try:
             
             
@@ -735,22 +755,35 @@ class Game_Loop:
             display = pygame.display.set_mode(
                 (self.args.width, self.args.height),
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
+            connect_request_msg = connect_request()
+            self.lc.publish(connect_request_keyword, connect_request_msg.encode())
+            print("connect request message publish done, waiting for connecting response...")
+            # 不断监听初始化回应的消息
+            while True:
+                try:
+                    [keyword, msg] = self.msg_queue.get(timeout=0.01)
+                    if keyword == connect_response_keyword:
+                        self.connect_response_dealer(msg)
+                        break
+                except queue.Empty:
+                    continue
 
             hud = HUD(self.args.width, self.args.height)
-            world = World(client.get_world(), hud)
-            controller = KeyboardControl(world, False)
-            # spawn_point = self.transform_waypoint(self.init_waypoint)
-            # print("spawn_point: ", spawn_point)
+            self.world = World(client.get_world(), hud)
+            controller = KeyboardControl(self.world, False)
+            spawn_point = self.transform_waypoint(self.init_waypoint)
+            print("spawn_point: ", spawn_point)
+            self.world.vehicle.set_transform(spawn_point)
             # world.vehicle.set_location(spawn_point.location)
             clock = pygame.time.Clock()
             
             # print("location: ", world.vehicle.get_location())
             if self.args.agent == "Roaming":
                 # print("Roaming!")
-                self.agent = RoamingAgent(world.vehicle)
+                self.agent = RoamingAgent(self.world.vehicle)
             else:
-                self.agent = BasicAgent(world.vehicle)
-                spawn_point = world.map.get_spawn_points()[0]
+                self.agent = BasicAgent(self.world.vehicle)
+                spawn_point = self.world.map.get_spawn_points()[0]
                 print(spawn_point)
                 self.agent.set_destination((spawn_point.location.x,
                                     spawn_point.location.y,
@@ -759,11 +792,10 @@ class Game_Loop:
             # 在这里发送车辆初始位置给服务器
             # print("location: ", world.vehicle.get_transform())
 
-            init_lcm_waypoint = self.transform_to_lcm_waypoint(world.vehicle.get_transform())
-            connect_request_msg = connect_request()
-            connect_request_msg.init_pos = init_lcm_waypoint
-            self.lc.publish(connect_request_keyword, connect_request_msg.encode())
-            print("connect request message publish done")
+            # init_lcm_waypoint = self.transform_to_lcm_waypoint(world.vehicle.get_transform())
+
+            # connect_request_msg.init_pos = init_lcm_waypoint
+
             # clock = pygame.time.Clock()
             # print(len(client.get_world().get_map().get_spawn_points()))
             # pre_loc = [0.0, 0.0, 0.0]
@@ -774,13 +806,13 @@ class Game_Loop:
             
             '''
             while True:
-                if controller.parse_events(world, clock):
+                if controller.parse_events(self.world, clock):
                     return
                 # as soon as the server is ready continue!
-                if not world.world.wait_for_tick(10.0):
+                if not self.world.world.wait_for_tick(10.0):
                     continue
-                world.tick(clock)
-                world.render(display)
+                self.world.tick(clock)
+                self.world.render(display)
                 pygame.display.flip()
                 # 是否需要向SUMO服务器发送action result消息
                 should_publish_result_msg = False
@@ -797,7 +829,7 @@ class Game_Loop:
                         # print("waypoint length: ", len(self.waypoints_buffer))
                         while len(self.waypoints_buffer) > 0:
                             temp_waypoint = self.waypoints_buffer.popleft()
-                            print("waypoint in main loop is ", temp_waypoint)
+                            # print("waypoint in main loop is ", temp_waypoint)
                             
                             self.agent.add_waypoint(temp_waypoint)
                     elif keyword == connect_response_keyword:
@@ -807,32 +839,33 @@ class Game_Loop:
                             print("invalid vehicle id from end connection package")
                         else:
                             print("simulation of this vehicle ended. Destroying ego.")
-                            if world is not None:
-                                world.destroy()
+                            if self.world is not None:
+                                self.world.destroy()
                             return
                     else:
                         pass
                 except queue.Empty:
                     pass
                 control = self.agent.run_step()
-                world.vehicle.apply_control(control)
+                self.world.vehicle.apply_control(control)
                 
                 if self.agent.get_finished_waypoints() >= self.message_waypoints:
                     should_publish_result_msg = True
                 # 获取当前位置和速度信息并发送到SUMO服务器
                 if should_publish_result_msg:
-                    current_speed = world.vehicle.get_velocity()
-                    current_transform = world.vehicle.get_transform()
+                    current_speed = self.world.vehicle.get_velocity()
+                    current_transform = self.world.vehicle.get_transform()
                     action_res_pack = action_result()
-                    action_res_pack.current_pos.Location = [
-                        current_transform.location.x,
-                        -1 * current_transform.location.y,
-                        current_transform.location.z]
-                    action_res_pack.current_pos.Rotation = [
-                        current_transform.rotation.pitch,
-                        current_transform.rotation.yaw,
-                        current_transform.rotation.roll
-                    ]
+                    action_res_pack.current_pos = self.transform_to_lcm_waypoint(current_transform)
+                    # action_res_pack.current_pos.Location = [
+                    #     current_transform.location.x,
+                    #     -1 * current_transform.location.y,
+                    #     current_transform.location.z]
+                    # action_res_pack.current_pos.Rotation = [
+                    #     current_transform.rotation.pitch,
+                    #     current_transform.rotation.yaw,
+                    #     current_transform.rotation.roll
+                    # ]
                     action_res_pack.vehicle_id = self.veh_id
                     # print("current speed: ", current_speed)
                     action_res_pack.current_speed = [
@@ -840,12 +873,14 @@ class Game_Loop:
                         current_speed.y,
                         current_speed.z
                     ]
+
                     self.lc.publish(action_result_keyword, action_res_pack.encode())
+                    self.action_result_count += 1
                     should_publish_result_msg = False
 
         finally:
-            if world is not None:
-                world.destroy()
+            if self.world is not None:
+                self.world.destroy()
 
             pygame.quit()
 
