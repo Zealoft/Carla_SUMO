@@ -1,0 +1,20 @@
+<configuration>
+    <input>
+        <net-file value="map.net.xml"/>
+        <route-files value="map.rou.xml"/>
+        <additional-files value="map.poly.xml"/>
+        <junction-files value=""/>
+    </input>
+    
+    <output>
+      <netstate-dump value="map.sumo.tr"/>
+      <tripinfo-output value="output-tripinfos.xml"/>
+      <vehroute-output value="output-vehroutes.xml"/>
+    </output>
+ 
+    <time>
+      <begin value="0"/>
+      <end value="1000"/>
+    </time>
+
+</configuration>

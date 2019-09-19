@@ -1,0 +1,20 @@
+<configuration>
+    <input>
+        <net-file value="Town03.net.xml"/>
+        <route-files value="Town03.rou.xml"/>
+        <additional-files value="Town03.poly.xml"/>
+        <junction-files value=""/>
+    </input>
+    
+    <output>
+      <netstate-dump value="Town03.sumo.tr"/>
+      <tripinfo-output value="Town03-output-tripinfos.xml"/>
+      <vehroute-output value="Town03-output-vehroutes.xml"/>
+    </output>
+ 
+    <time>
+      <begin value="0"/>
+      <end value="1000"/>
+    </time>
+
+</configuration>
