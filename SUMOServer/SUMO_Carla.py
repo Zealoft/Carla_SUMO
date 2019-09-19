@@ -4,6 +4,7 @@ import os
 import sys
 import subprocess
 import time
+import socket
 import lcm
 import argparse
 from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation
@@ -356,11 +357,14 @@ class traci_simulator:
         print("begin listening LCM messages...")
         # print("find_route result: ", type(find_route_res))
         # print("traci simulation test type: ", type(traci.simulation.convertRoad(0.0, 0.0)))
-        try:
-            while True:
+        while True:
+            try:
                 self.lc.handle()
-        except KeyboardInterrupt:
-            return
+            except KeyboardInterrupt:
+                sys.exit()
+                return
+        # while True:
+        #     self.lc.handle()
 
 
 def main():
