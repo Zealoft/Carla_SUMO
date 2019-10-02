@@ -60,7 +60,7 @@ class Vehicle_Client:
         self.route_id = rou_id
         self.simulation_steps = 0
         self.expected_simulation_steps = 0
-        self.waypoint_queue = deque(maxlen=100)
+        self.waypoint_queue = deque(maxlen=3)
 
 
 class traci_simulator:
@@ -68,7 +68,7 @@ class traci_simulator:
         sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
-        self.sumoBinary = 'sumo'
+        self.sumoBinary = 'sumoD'
         self.sumocmd = [self.sumoBinary, "-c", self.config_file_path]
         self.vehicle_ids = []
         rou_xml_tree = XML_Tree(sim_rou_path)
@@ -206,18 +206,13 @@ class traci_simulator:
             break
         new_vehicle = Vehicle_Client(new_id, veh_rou_id)
         self.vehicle_clients[new_id] = new_vehicle
-        # # traci.vehicle.subscribe(new_id, [const_2d_position])
-        traci.simulationStep()
-        traci.simulationStep()
-        # init_pos = traci.vehicle.getSubscriptionResults(new_id)[const_position]
-        # # print("demo pos: ", traci.vehicle.getPosition(new_id))
-        # print("init pos: ", init_pos)
+        self.simulationStep()
         # 构造connect_response消息并发送
         msg = connect_response()
         msg.vehicle_id = new_id
         init_pos_way = self.get_LCM_Waypoint(new_id)
-        while init_pos_way.Location[0] > 10000:
-            traci.simulationStep()
+        while init_pos_way.Location[0] > 10000 or init_pos_way.Location[0] < -10000:
+            self.simulationStep()
             init_pos_way = self.get_LCM_Waypoint(new_id)
         msg.init_pos = init_pos_way
         self.lc.publish(connect_response_keyword, msg.encode())
@@ -231,15 +226,8 @@ class traci_simulator:
         id = self.new_vehicle_event()
         next_action = action_package()
         for i in range(self.message_waypoints_num):
-            # traci.simulationStep()
-            self.simulation_step(id)
+            self.simulationStep()
             next_action.waypoints[i] = self.get_LCM_Waypoint(id)
-            # print("#",i, " position: ", traci.vehicle.getPosition(id))
-        # traci.simulationStep()
-        # traci.simulationStep()
-        # print("current position: ", traci.vehicle.getPosition(id))
-        # 服务器端仿真完成，发送后续路点给客户端
-
         next_action.vehicle_id = id
         # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(id)
         # next_action.target_speed = traci.vehicle.getSpeed(id)
@@ -269,9 +257,6 @@ class traci_simulator:
             end_pack.vehicle_id = msg.vehicle_id
             self.lc.publish(end_connection_keyword, end_pack.encode())
             return
-        # except Exception:
-        #     print("server fatal error")
-        #     return
         try:
             # pass
             traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, res_position[0], res_position[1], keepRoute=1)
@@ -300,8 +285,7 @@ class traci_simulator:
             # except traci.exceptions.FatalTraCIError:
             #     print("traci fatal error during simulation step")
             #     return
-            traci.simulationStep()
-            traci.simulationStep()
+            self.simulationStep()
             temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
             next_action.waypoints[i] = temp_point
             if temp_point is None:
@@ -331,18 +315,14 @@ class traci_simulator:
             print("traci exception. ")
 
 
-    def simulation_step(self, veh_id):
-        try:
+    def simulationStep(self):
+        for i in range(2):
             traci.simulationStep()
-            traci.simulationStep()
-        except traci.exceptions.FatalTraCIError:
-            print("caught fatal traci error during simulation step!")
-            return
-        for (key, value) in self.vehicle_clients.items():
-            value.simulation_steps += 1
-            if key != veh_id:
-                new_pos = self.get_LCM_Waypoint(key)
-                value.waypoint_queue.append(new_pos)
+        # for (key, value) in self.vehicle_clients.items():
+        #     value.simulation_steps += 1
+        #     if key != veh_id:
+        #         new_pos = self.get_LCM_Waypoint(key)
+        #         value.waypoint_queue.append(new_pos)
 
     def main_loop(self):
         traci.start(self.sumocmd)

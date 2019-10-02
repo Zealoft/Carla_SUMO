@@ -1,2 +1,0 @@
-import zcm
-from zcm_message import connect_request

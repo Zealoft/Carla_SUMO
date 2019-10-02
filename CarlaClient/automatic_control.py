@@ -626,9 +626,11 @@ class Game_Loop:
         self.init_waypoint = None
         self.veh_id = None
         self.init = False
+        self.should_publish = True
         # 在完成10个点的驾驶后而不是10次run_step后再发送坐标
         self.finish_current_action = False
         self.message_waypoints = 3
+        self.action_pack_count = 0
         self.agent = None
         self.world = None
         self.args = args
@@ -671,7 +673,8 @@ class Game_Loop:
                 suspend = suspend_simulation()
                 suspend.vehicle_id = self.veh_id
                 suspend.current_pos = self.transform_to_lcm_waypoint(self.world.vehicle.get_transform())
-                self.lc.publish(suspend_simulation_keyword, suspend.encode())
+                if self.should_publish is True:
+                    self.lc.publish(suspend_simulation_keyword, suspend.encode())
             else:
                 local_result_count = self.action_result_count
 
@@ -748,7 +751,6 @@ class Game_Loop:
         # world = None
         try:
             
-            
             client = carla.Client(self.args.host, self.args.port)
             client.set_timeout(4.0)
 
@@ -757,6 +759,7 @@ class Game_Loop:
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
             connect_request_msg = connect_request()
             self.lc.publish(connect_request_keyword, connect_request_msg.encode())
+
             print("connect request message publish done, waiting for connecting response...")
             # 不断监听初始化回应的消息
             while True:
@@ -777,6 +780,7 @@ class Game_Loop:
             # world.vehicle.set_location(spawn_point.location)
             clock = pygame.time.Clock()
             
+            # time.sleep(10) 
             # print("location: ", world.vehicle.get_location())
             if self.args.agent == "Roaming":
                 # print("Roaming!")
@@ -805,6 +809,7 @@ class Game_Loop:
             main loop of the client end.
             
             '''
+            i_var = 0
             while True:
                 if controller.parse_events(self.world, clock):
                     return
@@ -823,9 +828,8 @@ class Game_Loop:
                     if keyword == action_package_keyword:
                         print("Receive an action package!")
                         self.agent.drop_waypoint_buffer()
-                        self.action_package_dealer(msg)
                         # 在收到新的路点消息后丢弃当前缓冲中剩余的路点
-                        
+                        self.action_package_dealer(msg)
                         # print("waypoint length: ", len(self.waypoints_buffer))
                         while len(self.waypoints_buffer) > 0:
                             temp_waypoint = self.waypoints_buffer.popleft()
@@ -839,6 +843,7 @@ class Game_Loop:
                             print("invalid vehicle id from end connection package")
                         else:
                             print("simulation of this vehicle ended. Destroying ego.")
+                            self.should_publish = False
                             if self.world is not None:
                                 self.world.destroy()
                             return
@@ -921,7 +926,7 @@ def main():
     argparser.add_argument(
         '--res',
         metavar='WIDTHxHEIGHT',
-        default='1280x720',
+        default='640x480',
         help='window resolution (default: 1280x720)')
 
     argparser.add_argument("-a", "--agent", type=str,
@@ -936,7 +941,6 @@ def main():
     logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
 
     logging.info('listening to server %s:%s', args.host, args.port)
-
     print(__doc__)
     main_loop = Game_Loop(args)
     try:
