@@ -68,7 +68,7 @@ class traci_simulator:
         sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
-        self.sumoBinary = 'sumoD'
+        self.sumoBinary = 'sumo-guiD'
         self.sumocmd = [self.sumoBinary, "-c", self.config_file_path]
         self.vehicle_ids = []
         rou_xml_tree = XML_Tree(sim_rou_path)
@@ -248,7 +248,9 @@ class traci_simulator:
             lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
             edge = traci.vehicle.getRoadID(msg.vehicle_id)
             edge = edge.split(".")[0]
-            print("traci edge: ", edge)
+            if traci.vehicle.isStopped(msg.vehicle_id):
+                traci.vehicle.resume(msg.vehicle_id)
+            # print("traci edge: ", edge)
             # print("traci lane: ", lane)
             # print("lane: ", int(lane), ", edge: ", int(edge))
         except traci.exceptions.TraCIException:
@@ -311,12 +313,13 @@ class traci_simulator:
             edge = traci.vehicle.getRoadID(msg.vehicle_id)
             edge = edge.split(".")[0]
             traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, current_pos[0], current_pos[1], keepRoute=1)
+            traci.vehicle.setStop(msg.vehicle_id, edge, until=10000)
         except traci.exceptions.TraCIException:
             print("traci exception. ")
 
 
     def simulationStep(self):
-        for i in range(2):
+        for i in range(1):
             traci.simulationStep()
         # for (key, value) in self.vehicle_clients.items():
         #     value.simulation_steps += 1
