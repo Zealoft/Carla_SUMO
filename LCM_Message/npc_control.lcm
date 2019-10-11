@@ -40,3 +40,8 @@ struct suspend_simulation
     string vehicle_id;
     Waypoint current_pos;
 }
+
+struct reset_simulation
+{
+    string vehicle_id;
+}

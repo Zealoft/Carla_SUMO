@@ -7,7 +7,7 @@ import time
 import socket
 import lcm
 import argparse
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation
 from xml_reader import XML_Tree
 from collections import deque
 
@@ -34,6 +34,7 @@ action_result_keyword = "action_result"
 action_package_keyword = "action_package"
 end_connection_keyword = "end_connection"
 suspend_simulation_keyword = "suspend_simulation"
+reset_simulation_keyword = "reset_simulation"
 
 basic_vehicle_info = (const_2d_position, const_route_id, const_edge_id, const_lane_id)
 
@@ -87,7 +88,7 @@ class traci_simulator:
         self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
         self.lc.subscribe(action_result_keyword, self.action_result_handler)
         self.lc.subscribe(suspend_simulation_keyword, self.suspend_simualtion_handler)
-
+        self.lc.subscribe(reset_simulation_keyword, self.reset_simulation_handler)
 
     """
     transform from LCM waypoint to TraCi waypoint which will be used here
@@ -214,6 +215,7 @@ class traci_simulator:
         while init_pos_way.Location[0] > 10000 or init_pos_way.Location[0] < -10000:
             self.simulationStep()
             init_pos_way = self.get_LCM_Waypoint(new_id)
+        init_pos_way.Location[2] += 5
         msg.init_pos = init_pos_way
         self.lc.publish(connect_response_keyword, msg.encode())
         print("publish done. vehicle id: ", new_id)
@@ -317,6 +319,8 @@ class traci_simulator:
         except traci.exceptions.TraCIException:
             print("traci exception. ")
 
+    def reset_simulation_handler(self, channel, data):
+        pass
 
     def simulationStep(self):
         for i in range(1):

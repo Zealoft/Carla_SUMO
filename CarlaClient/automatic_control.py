@@ -606,7 +606,7 @@ class CameraManager(object):
 import lcm
 # 使用多线程的方法来监听LCM消息
 import threading, time
-from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation
+from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation, reset_simulation
 from collections import deque
 # 线程安全的队列实现
 from queue import Queue
@@ -617,6 +617,7 @@ action_package_keyword = "action_package"
 action_result_keyword = "action_result"
 end_connection_keyword = "end_connection"
 suspend_simulation_keyword = "suspend_simulation"
+reset_simulation_keyword = "reset_simulation"
 
 
 
@@ -663,7 +664,7 @@ class Game_Loop:
     # 通过监听一段时间内发送action_result的个数来判断是否需要发送suspend_simulation
     def suspend_simulation_control_process(self):
         local_result_count = 0
-        listening_interval = 5
+        listening_interval = 3
         while True:
             # 每隔若干秒查看一次
             time.sleep(listening_interval)
@@ -675,6 +676,10 @@ class Game_Loop:
                 suspend.current_pos = self.transform_to_lcm_waypoint(self.world.vehicle.get_transform())
                 if self.should_publish is True:
                     self.lc.publish(suspend_simulation_keyword, suspend.encode())
+            elif local_result_count == 0:
+                pack = reset_simulation()
+                pack.vehicle_id = self.veh_id
+                self.lc.publish(reset_simulation_keyword, pack.encode())
             else:
                 local_result_count = self.action_result_count
 
@@ -698,7 +703,7 @@ class Game_Loop:
         new_waypoint.location.y = -1 * lcm_waypoint.Location[1]
         new_waypoint.location.z = lcm_waypoint.Location[2]
         new_waypoint.rotation.pitch = lcm_waypoint.Rotation[0]
-        new_waypoint.rotation.yaw = lcm_waypoint.Rotation[1]
+        new_waypoint.rotation.yaw = lcm_waypoint.Rotation[1] - 90.0
         new_waypoint.rotation.roll = lcm_waypoint.Rotation[2]
         return new_waypoint
     def action_package_handler(self, channel, data):
