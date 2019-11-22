@@ -69,7 +69,7 @@ class traci_simulator:
         sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
-        self.sumoBinary = 'sumo-guiD'
+        self.sumoBinary = 'sumo-gui'
         self.sumocmd = [self.sumoBinary, "-c", self.config_file_path]
         self.vehicle_ids = []
         rou_xml_tree = XML_Tree(sim_rou_path)

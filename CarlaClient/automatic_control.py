@@ -68,7 +68,7 @@ except ImportError:
 # ==============================================================================
 try:
     sys.path.append('/home/autolab/0.9.4/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
-    # sys.path.append("C:/Users/autolab/Desktop/carla/PythonAPI/carla/dist/carla-0.9.6-py3.7-win-amd64.egg")
+    sys.path.append("C:/Users/autolab/Desktop/carla/PythonAPI/carla/dist/carla-0.9.6-py3.7-win-amd64.egg")
     # sys.path.append('/home/autolab/zwh/SUMO_Carla/CarlaClient/PythonAPI/carla-0.9.6-py3.5-linux-x86_64.egg')
     sys.path.append(glob.glob('**/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
