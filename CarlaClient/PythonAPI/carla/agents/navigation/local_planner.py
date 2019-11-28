@@ -25,6 +25,8 @@ class RoadOption(Enum):
     RIGHT = 2
     STRAIGHT = 3
     LANEFOLLOW = 4
+    CHANGELANELEFT = 5
+    CHANGELANERIGHT = 6
 
 
 class LocalPlanner(object):
@@ -67,22 +69,31 @@ class LocalPlanner(object):
         self._current_waypoint = None
         self._target_road_option = None
         self._next_waypoints = None
-        self._target_waypoint = None
+        self.target_waypoint = None
         self._vehicle_controller = None
         self._global_plan = None
+        self._sumo_controlled = True
         # queue with tuples of (waypoint, RoadOption)
         self._waypoints_queue = deque(maxlen=600)
         self._buffer_size = 5
+        self.message_waypoints = 3
+        # 当前阶段完成的waypoints个数
+        self.finished_waypoints = 0
         self._waypoint_buffer = deque(maxlen=self._buffer_size)
 
         # initializing controller
-        self.init_controller(opt_dict)
+        self._init_controller(opt_dict)
 
     def __del__(self):
-        self._vehicle.destroy()
+        if self._vehicle:
+            self._vehicle.destroy()
         print("Destroying ego-vehicle!")
+        
+    def reset_vehicle(self):
+        self._vehicle = None
+        print("Resetting ego-vehicle!")
 
-    def init_controller(self, opt_dict):
+    def _init_controller(self, opt_dict):
         """
         Controller initialization.
 
@@ -92,7 +103,7 @@ class LocalPlanner(object):
         # default params
         self._dt = 1.0 / 20.0
         self._target_speed = 20.0  # Km/h
-        self._sampling_radius = self._target_speed * 0.5 / 3.6  # 0.5 seconds horizon
+        self._sampling_radius = self._target_speed * 1 / 3.6  # 0.5 seconds horizon
         self._min_distance = self._sampling_radius * self.MIN_DISTANCE_PERCENTAGE
         args_lateral_dict = {
             'K_P': 1.95,
@@ -127,10 +138,10 @@ class LocalPlanner(object):
         self._global_plan = False
 
         # compute initial waypoints
-        self._waypoints_queue.append( (self._current_waypoint.next(self._sampling_radius)[0], RoadOption.LANEFOLLOW))
-        self._target_road_option = RoadOption.LANEFOLLOW
-        # fill waypoint trajectory queue
-        self._compute_next_waypoints(k=200)
+        # self._waypoints_queue.append( (self._current_waypoint.next(self._sampling_radius)[0], RoadOption.LANEFOLLOW))
+        # self._target_road_option = RoadOption.LANEFOLLOW
+        # # fill waypoint trajectory queue
+        # self._compute_next_waypoints(k=200)
 
 
     def set_speed(self, speed):
@@ -171,13 +182,45 @@ class LocalPlanner(object):
 
             self._waypoints_queue.append((next_waypoint, road_option))
 
+    def add_waypoint(self, waypoint):
+        """
+        Add a new specific waypoint to the waypoints buffer
+        from the SUMO simulation server.
 
+        :param waypoint: the specific waypoint passed here 
+        """
+        new_point = self._map.get_waypoint(waypoint.location)
+        new_point.transform.rotation = waypoint.rotation
+        road_option = compute_connection(self._current_waypoint, new_point)
+        self._waypoints_queue.append((new_point, road_option))
+
+    def add_carla_waypoint(self, new_point):
+        road_option = compute_connection(self._current_waypoint, new_point)
+        self._waypoints_queue.append((new_point, road_option))
+    
     def set_global_plan(self, current_plan):
         self._waypoints_queue.clear()
         for elem in current_plan:
             self._waypoints_queue.append(elem)
         self._target_road_option = RoadOption.LANEFOLLOW
         self._global_plan = True
+    
+    def get_finished_waypoints(self):
+        ret = self.finished_waypoints
+        if self.finished_waypoints >= self.message_waypoints:
+            self.finished_waypoints = 0
+        return ret
+
+    def set_sumo_drive(self, sumo_drive=False):
+        self._sumo_controlled = sumo_drive
+
+    '''
+    收到新的action package后丢弃现有的路点缓冲
+    '''
+    def drop_waypoint_buffer(self):
+        self._waypoints_queue.clear()
+        self._waypoint_buffer.clear()
+        self.finished_waypoints = 0
 
     def run_step(self, debug=True):
         """
@@ -189,20 +232,20 @@ class LocalPlanner(object):
         """
         
         # not enough waypoints in the horizon? => add more!
-        if len(self._waypoints_queue) < int(self._waypoints_queue.maxlen * 0.5):
-            if not self._global_plan:
-                print("global plan is false")
-                self._compute_next_waypoints(k=100)
-        
-        if len(self._waypoints_queue) == 0:
-            control = carla.VehicleControl()
-            control.steer = 0.0
-            control.throttle = 0.0
-            control.brake = 0.0
-            control.hand_brake = False
-            control.manual_gear_shift = False
+        if not self._sumo_controlled:
+            if len(self._waypoints_queue) < int(self._waypoints_queue.maxlen * 0.5):
+                if not self._global_plan:
+                    self._compute_next_waypoints(k=100)
+            
+            if len(self._waypoints_queue) == 0:
+                control = carla.VehicleControl()
+                control.steer = 0.0
+                control.throttle = 0.0
+                control.brake = 0.0
+                control.hand_brake = False
+                control.manual_gear_shift = False
 
-            return control
+        #     return control
 
         #   Buffering the waypoints
         if not self._waypoint_buffer:
@@ -212,13 +255,14 @@ class LocalPlanner(object):
                         self._waypoints_queue.popleft())
                 else:
                     break
-
+        if not self._waypoint_buffer:
+            return None
         # current vehicle waypoint
         self._current_waypoint = self._map.get_waypoint(self._vehicle.get_location())
         # target waypoint
-        self._target_waypoint, self._target_road_option = self._waypoint_buffer[0]
+        self.target_waypoint, self._target_road_option = self._waypoint_buffer[0]
         # move using PID controllers
-        control = self._vehicle_controller.run_step(self._target_speed, self._target_waypoint)
+        control = self._vehicle_controller.run_step(self._target_speed, self.target_waypoint)
 
         # purge the queue of obsolete waypoints
         vehicle_transform = self._vehicle.get_transform()
@@ -231,9 +275,11 @@ class LocalPlanner(object):
         if max_index >= 0:
             for i in range(max_index + 1):
                 self._waypoint_buffer.popleft()
+                self.finished_waypoints += 1
+                print("current finished waypoints is ", self.finished_waypoints)
 
         if debug:
-            draw_waypoints(self._vehicle.get_world(), [self._target_waypoint], self._vehicle.get_location().z + 1.0)
+            draw_waypoints(self._vehicle.get_world(), [self.target_waypoint], self._vehicle.get_location().z + 1.0)
 
         return control
 

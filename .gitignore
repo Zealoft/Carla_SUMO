@@ -17,6 +17,7 @@ SUMOServer/zcm
 /0.9.6_New/Engine
 /0.9.6_New/HDMaps
 /RoadRunnerFiles/*/
+*.egg
 *.swp
 *.VC.db
 *.VC.opendb

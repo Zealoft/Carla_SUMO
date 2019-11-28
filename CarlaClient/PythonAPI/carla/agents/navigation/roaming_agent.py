@@ -33,6 +33,20 @@ class RoamingAgent(Agent):
         self._proximity_threshold = 10.0  # meters
         self._state = AgentState.NAVIGATING
         self._local_planner = LocalPlanner(self._vehicle)
+        self._stopped = False
+
+    def set_sumo_drive(self, sumo_drive=False):
+        self._stopped = True
+        self._local_planner.set_sumo_drive(sumo_drive)
+
+    def add_waypoint(self, waypoint):
+        self._local_planner.add_waypoint(waypoint)
+
+    def get_finished_waypoints(self):
+        return self._local_planner.get_finished_waypoints()
+    
+    def drop_waypoint_buffer(self):
+        self._local_planner.drop_waypoint_buffer()
 
     def run_step(self, debug=False):
         """
@@ -67,11 +81,13 @@ class RoamingAgent(Agent):
             self._state = AgentState.BLOCKED_RED_LIGHT
             hazard_detected = True
 
-        if hazard_detected:
+        if hazard_detected or self._stopped:
             control = self.emergency_stop()
         else:
             self._state = AgentState.NAVIGATING
             # standard local planner behavior
             control = self._local_planner.run_step()
+            if control == None:
+                control = self.emergency_stop()
 
         return control

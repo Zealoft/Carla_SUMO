@@ -240,6 +240,7 @@ class GlobalRoutePlanner(object):
         """
         This method returns the last successive intersection edge
         from a starting index on the route.
+
         This helps moving past tiny intersection edges to calculate
         proper turn decisions.
         """
