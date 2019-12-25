@@ -45,3 +45,9 @@ struct reset_simulation
 {
     string vehicle_id;
 }
+
+struct traffic_light_notify
+{
+    string vehicle_id;
+    Waypoint current_pos;
+}
