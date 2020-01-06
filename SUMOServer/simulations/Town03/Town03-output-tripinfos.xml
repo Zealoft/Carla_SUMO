@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 12/06/19 13:53:17 by Eclipse SUMO GUI Version 1.3.1
+<!-- generated on 01/06/20 18:19:31 by Eclipse SUMO GUI Version 1.3.1
 <configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
 
     <input>
@@ -21,14 +21,14 @@
     </time>
 
     <traci_server>
-        <remote-port value="59539"/>
+        <remote-port value="51211"/>
+        <num-clients value="1"/>
     </traci_server>
 
 </configuration>
 -->
 
 <tripinfos xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/tripinfo_file.xsd">
-    <tripinfo id="manual_vehicle_1" depart="7.00" departLane="-7.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="37.00" arrivalLane="-29.0.00_0" arrivalPos="78.53" arrivalSpeed="12.70" duration="30.00" routeLength="629.72" waitingTime="0.00" waitingCount="0" stopTime="0.00" timeLoss="8.05" rerouteNo="0" devices="vehroute_manual_vehicle_1 tripinfo_manual_vehicle_1" vType="DEFAULT_VEHTYPE" speedFactor="0.94" vaporized=""/>
-    <tripinfo id="manual_vehicle_0" depart="0.00" departLane="20.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="83.00" arrivalLane="81.0.00_1" arrivalPos="39.49" arrivalSpeed="13.43" duration="83.00" routeLength="1216.18" waitingTime="0.00" waitingCount="0" stopTime="0.00" timeLoss="17.48" rerouteNo="0" devices="vehroute_manual_vehicle_0 tripinfo_manual_vehicle_0" vType="DEFAULT_VEHTYPE" speedFactor="1.06" vaporized=""/>
-    <tripinfo id="manual_vehicle_2" depart="23.00" departLane="-8.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="90.00" arrivalLane="-69.0.00_0" arrivalPos="235.29" arrivalSpeed="13.66" duration="67.00" routeLength="726.01" waitingTime="0.00" waitingCount="0" stopTime="0.00" timeLoss="11.55" rerouteNo="0" devices="vehroute_manual_vehicle_2 tripinfo_manual_vehicle_2" vType="DEFAULT_VEHTYPE" speedFactor="1.01" vaporized=""/>
-    <tripinfo id="manual_vehicle_3" depart="27.00" departLane="69.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="130.00" arrivalLane="-18.0.00_1" arrivalPos="56.18" arrivalSpeed="14.57" duration="103.00" routeLength="1235.13" waitingTime="0.00" waitingCount="0" stopTime="0.00" timeLoss="18.23" rerouteNo="0" devices="vehroute_manual_vehicle_3 tripinfo_manual_vehicle_3" vType="DEFAULT_VEHTYPE" speedFactor="1.08" vaporized=""/>
+    <tripinfo id="manual_vehicle_0" depart="0.00" departLane="-70.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="72.00" arrivalLane="-62.0.00_1" arrivalPos="76.33" arrivalSpeed="7.53" duration="72.00" routeLength="2529.75" waitingTime="0.00" waitingCount="0" stopTime="0.00" timeLoss="38.68" rerouteNo="0" devices="vehroute_manual_vehicle_0 tripinfo_manual_vehicle_0" vType="DEFAULT_VEHTYPE" speedFactor="1.06" vaporized=""/>
+    <tripinfo id="manual_vehicle_1" depart="73.00" departLane="-3.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="123.00" arrivalLane="-64.0.00_0" arrivalPos="40.44" arrivalSpeed="6.34" duration="50.00" routeLength="3009.16" waitingTime="0.00" waitingCount="0" stopTime="0.00" timeLoss="23.42" rerouteNo="0" devices="vehroute_manual_vehicle_1 tripinfo_manual_vehicle_1" vType="DEFAULT_VEHTYPE" speedFactor="0.94" vaporized=""/>
+    <tripinfo id="manual_vehicle_2" depart="124.00" departLane="83.0.00_0" departPos="5.10" departSpeed="0.00" departDelay="0.00" arrival="433.00" arrivalLane="1.0.00_0" arrivalPos="49.80" arrivalSpeed="7.74" duration="309.00" routeLength="18281.76" waitingTime="15.00" waitingCount="15" stopTime="0.00" timeLoss="133.40" rerouteNo="0" devices="vehroute_manual_vehicle_2 tripinfo_manual_vehicle_2" vType="DEFAULT_VEHTYPE" speedFactor="1.01" vaporized=""/>

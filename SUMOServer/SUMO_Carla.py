@@ -10,6 +10,7 @@ import argparse
 from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation
 from xml_reader import XML_Tree
 from collections import deque
+import threading
 
 const_speed = 0x40
 const_position = 0x42
@@ -52,6 +53,7 @@ else:
 import traci
 import traci.constants as tc
 import random
+from sumolib.miscutils import getFreeSocketPort
 
 print("traci import done")
 
@@ -66,12 +68,23 @@ class Vehicle_Client:
 
 
 class traci_simulator:
-    def __init__(self, cfg_path):
+    def __init__(self, cfg_path, num_clients):
         sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
+        self.listen_port = getFreeSocketPort()
+        self.num_clients = num_clients
+        # 等待所有已经连接的client完成行驶后再进行下一步仿真
+        self.client_events = []
         self.sumoBinary = 'sumo-gui'
-        self.sumocmd = [self.sumoBinary, "-c", self.config_file_path]
+        self.sumocmd = [
+            self.sumoBinary, 
+            "-c", 
+            self.config_file_path,
+            "--num-clients",
+            str(num_clients)
+        ]
+        print(self.sumocmd)
         self.vehicle_ids = []
         rou_xml_tree = XML_Tree(sim_rou_path)
         net_xml_tree = XML_Tree(sim_net_path)
@@ -82,6 +95,15 @@ class traci_simulator:
         self.file_route_num = 0
         self.offsets = net_xml_tree.read_offset()
         self.message_waypoints_num = 3
+        self.current_order = 1
+        # 记录所有客户端的数量，阻塞等待仿真
+        self.client_num = 0
+        # 阻塞等待仿真的条件变量
+        self.simulation_conn = threading.Condition()
+        # 记录所有已发送结果客户端序号的集合，用于判断是否得到所有客户端的结果
+        self.client_ids = set()
+        # 初始化所有SUMO子进程
+        # self.init_sumo_threads()
         self.lc = lcm.LCM()
         # 用id-vehicle对来存储所有客户端
         self.vehicle_clients = {}
@@ -91,6 +113,25 @@ class traci_simulator:
         self.lc.subscribe(suspend_simulation_keyword, self.suspend_simualtion_handler)
         self.lc.subscribe(reset_simulation_keyword, self.reset_simulation_handler)
 
+    def init_sumo_threads(self):
+        self.sumo_threads = []
+        print("ready to init threads")
+        for i in range(self.num_clients + 1):
+            print("ready to create ", i, "# thread")
+            new_thread = threading.Thread(target=self.sumo_thread_func)
+            new_thread.setDaemon(True)
+            new_thread.start()
+            self.sumo_threads.append(new_thread)
+            
+
+    def sumo_thread_func(self):
+        traci.init(self.listen_port)
+        traci.setOrder(self.current_order)
+        print("current order: ", self.current_order)
+        self.current_order += 1
+        # while True:
+        #     pass
+    
     """
     transform from LCM waypoint to TraCi waypoint which will be used here
     """
@@ -341,6 +382,8 @@ class traci_simulator:
         pass
 
     def simulationStep(self):
+        # 阻塞等待所有客户端都发来action_result再执行仿真
+        
         for i in range(1):
             traci.simulationStep()
         # for (key, value) in self.vehicle_clients.items():
@@ -350,7 +393,7 @@ class traci_simulator:
         #         value.waypoint_queue.append(new_pos)
 
     def main_loop(self):
-        traci.start(self.sumocmd)
+        traci.start(self.sumocmd, self.listen_port)
         # no need to add routes from file.
         i = 0
         for route in self.routes:
@@ -362,14 +405,14 @@ class traci_simulator:
         print("begin listening LCM messages...")
         # print("find_route result: ", type(find_route_res))
         # print("traci simulation test type: ", type(traci.simulation.convertRoad(0.0, 0.0)))
-        while True:
-            try:
-                self.lc.handle()
-            except KeyboardInterrupt:
-                sys.exit()
-                return
         # while True:
-        #     self.lc.handle()
+        #     try:
+        #         self.lc.handle()
+        #     except KeyboardInterrupt:
+        #         sys.exit()
+        #         return
+        while True:
+            self.lc.handle()
 
 
 def main():
@@ -383,20 +426,26 @@ def main():
     argparser.add_argument(
         '-p', '--port',
         metavar='P',
-        default=2000,
+        default=6777,
         type=int,
-        help='TCP port to listen to (default: 2000)')
+        help='TCP port to listen to (default: 3200)')
     argparser.add_argument(
         '-S', '--source',
         default='simulations/Town03/Town03.sumocfg',
         help='source of the sumo config file',
     )
+    argparser.add_argument(
+        '-n', '--num_clients',
+        metavar='N',
+        default=1,
+        type=int,
+        help='number of clients to listen to (default: 1)')
     args = argparser.parse_args()
     # sim_path = args.source.split('.')[0] + '.rou.xml'
 
     # print(sim_path)
     # print(args.source)
-    simulator = traci_simulator(args.source)
+    simulator = traci_simulator(args.source, args.num_clients)
     # simulator.start_simulation()
     simulator.main_loop()
 

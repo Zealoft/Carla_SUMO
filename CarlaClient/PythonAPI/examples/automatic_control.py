@@ -936,8 +936,11 @@ class Game_Loop:
             '''
             i_var = 0
             settings = self.world.world.get_settings()
+            settings.no_rendering_mode = False
             settings.fixed_delta_seconds = None
+            # settings.fixed_delta_seconds = 0.05
             self.world.world.apply_settings(settings)
+            self.world.world.get_map().save_to_disk('map.xodr')
             while True:
                 if controller.parse_events(client, self.world, clock):
                     return
@@ -992,6 +995,11 @@ class Game_Loop:
                 
                 if self.agent.get_finished_waypoints() >= self.message_waypoints:
                     should_publish_result_msg = True
+                if self.world.player.is_at_traffic_light():
+                    # print("hello traffic light!")
+                    traffic_light = self.world.player.get_traffic_light()
+                    if traffic_light.get_state() == carla.TrafficLightState.Red:
+                        traffic_light.set_state(carla.TrafficLightState.Green)
                 # 获取当前位置和速度信息并发送到SUMO服务器
                 if should_publish_result_msg:
                     current_speed = self.world.player.get_velocity()
@@ -1076,7 +1084,7 @@ def main():
     argparser.add_argument("-a", "--agent", type=str,
                            choices=["Roaming", "Basic"],
                            help="select which agent to run",
-                           default="Roaming")
+                           default="Basic")
     args = argparser.parse_args()
     print("display: ", args.display)
     args.width, args.height = [int(x) for x in args.res.split('x')]
