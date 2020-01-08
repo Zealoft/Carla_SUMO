@@ -64,7 +64,7 @@ class Vehicle_Client:
         self.route_id = rou_id
         self.simulation_steps = 0
         self.expected_simulation_steps = 0
-        self.waypoint_queue = deque(maxlen=3)
+        self.waypoint_queue = deque(maxlen=10)
 
 
 class traci_simulator:
@@ -95,20 +95,24 @@ class traci_simulator:
         self.file_route_num = 0
         self.offsets = net_xml_tree.read_offset()
         self.message_waypoints_num = 3
-        self.current_order = 1
         # 记录所有客户端的数量，阻塞等待仿真
         self.client_num = 0
         # 阻塞等待仿真的条件变量
         self.simulation_conn = threading.Condition()
         # 记录所有已发送结果客户端序号的集合，用于判断是否得到所有客户端的结果
+        # 如果在第一个客户端发送action_result时进行仿真，则判断集合是否为空
+        # 如果在最后一个客户端进行仿真，则判断集合元素个数是否为已连接客户端个数
         self.client_ids = set()
+        # 记录仿真进度领先的客户端id的集合链
+        # 当前集合清空时如果集合链不为空，则取出集合链首部的集合作为当前集合
+        self.advanced_clients_queue = deque()
         # 初始化所有SUMO子进程
         # self.init_sumo_threads()
         self.lc = lcm.LCM()
         # 用id-vehicle对来存储所有客户端
         self.vehicle_clients = {}
         # 监听需要接收的消息
-        self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
+        # self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
         self.lc.subscribe(action_result_keyword, self.action_result_handler)
         self.lc.subscribe(suspend_simulation_keyword, self.suspend_simualtion_handler)
         self.lc.subscribe(reset_simulation_keyword, self.reset_simulation_handler)
@@ -131,6 +135,16 @@ class traci_simulator:
         self.current_order += 1
         # while True:
         #     pass
+
+    
+    # 专门接收新客户端连接消息的线程
+    # 由于新客户端需要进行若干次仿真获取新车辆的位置信息，因此阻塞等待其他已连接客户端的仿真
+    # 新客户端连接放在主线程中会阻塞整个程序因此新开线程，可以后续使用协程优化
+    def listen_new_client_func(self):
+        lc = lcm.LCM()
+        lc.subscribe(connect_request_keyword, self.connect_request_handler)
+        while True:
+            lc.handle()
     
     """
     transform from LCM waypoint to TraCi waypoint which will be used here
@@ -207,6 +221,8 @@ class traci_simulator:
     # function called to create a new vehichle in SUMO Server.
     # 
 
+    # 新客户端连接时为新客户端分配车辆id、车辆路线，在仿真场景中添加新车辆，并获取初始位置并发送connect_response的方法
+    # 由于此处需要执行simulationStep()，因此同样需要建立新的id集合，
     def new_vehicle_event(self):
 
         new_id = self.get_new_vehicle_id()
@@ -228,7 +244,8 @@ class traci_simulator:
             break
         new_vehicle = Vehicle_Client(new_id, veh_rou_id)
         self.vehicle_clients[new_id] = new_vehicle
-        self.simulationStep()
+        # @TODO 此处的simulationStep()应改为阻塞等待其他客户端的行驶完成
+        # self.simulationStep()
         # 构造connect_response消息并发送
         msg = connect_response()
         msg.vehicle_id = new_id
@@ -246,6 +263,7 @@ class traci_simulator:
     def connect_request_handler(self, channel, data):
         print("Received message on channel ", channel)
         msg = connect_request.decode(data)
+        # 此处的new_vehicle_event会阻塞等待其他客户端完成当前步仿真
         id = self.new_vehicle_event()
         next_action = action_package()
         for i in range(self.message_waypoints_num):
@@ -261,107 +279,78 @@ class traci_simulator:
     # 根据车辆id设置相应的车辆的实际状态
     def action_result_handler(self, channel, data):
         print("Received message on channel ", channel)
+        # 首先解析报文信息，获取当前客户端车辆所在的位置
         msg = action_result.decode(data)
         # print("action result position: ", msg.current_pos.Location)
         res_position = self.transform_LCM_to_SUMO_Waypoint(msg.current_pos)
         is_restart = False
         try:
             print("action result position: ", res_position)
-            # print("current position in SUMO: ", traci.vehicle.getPosition(msg.vehicle_id))
-            print("action result vehicle id: ", msg.vehicle_id)
-            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-            edge = traci.vehicle.getRoadID(msg.vehicle_id)
-            edge = edge.split(".")[0]
-            if traci.vehicle.isStopped(msg.vehicle_id):
-                traci.vehicle.resume(msg.vehicle_id)
-            # print("traci edge: ", edge)
-            # print("traci lane: ", lane)
-            # print("lane: ", int(lane), ", edge: ", int(edge))
         except traci.exceptions.TraCIException:
             # 之前路线行驶完成 重新规划路线
-            print("vehicle simulation ended. Pick a new route")
-            # print("res position is:", res_position)
-            # start_edge = traci.simulation.convertRoad(res_position[0], res_position[1])[0]
-            # end_edge = self.select_random_end_edge()
-            # find_route_res = traci.simulation.findRoute(start_edge, end_edge)
-            # edges_list = find_route_res.edges
-            # rou_name = restart_route_id_prefix + str(self.manual_route_num)
-            # traci.route.add(rou_name, edges_list)
-            # self.manual_route_num += 1
-            # traci.vehicle.add(msg.vehicle_id, rou_name)
-            # lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-            # traci.vehicle.moveToXY(msg.vehicle_id, start_edge, lane, res_position[0], res_position[1], keepRoute=1)
-            # self.simulationStep()
-            # is_restart = True
-
+            print("vehicle simulation ended.")
             end_pack = end_connection()
             end_pack.vehicle_id = msg.vehicle_id
             self.lc.publish(end_connection_keyword, end_pack.encode())
             return
-        # if not is_restart:
-        try:
-            # pass
-            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-            edge = traci.vehicle.getRoadID(msg.vehicle_id)
-            edge = edge.split(".")[0]
-            traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, res_position[0], res_position[1], keepRoute=1)
-        except traci.exceptions.FatalTraCIError:
-            print("traci fatal error caught")
-            return
-        print("position after movetoxy(): ", traci.vehicle.getPosition(msg.vehicle_id))
-        # 如果当前是停车状态，则恢复行驶
-        # if traci.vehicle.isStopped(msg.vehicle_id):
-        #     traci.vehicle.resume(msg.vehicle_id)
-        # if traci.vehicle.getSpeed(msg.vehicle_id) <= 1.0:
-        #     traci.vehicle.slowDown(msg.vehicle_id, 20.0, 10000)
         next_action = action_package()
-        
+        # 将客户端id加入集合或集合链的过程
+        # 如果客户端id不在集合中，则将当前客户端id加入当前集合
+        if msg.vehicle_id not in self.client_ids:
+            self.client_ids.add(msg.vehicle_id)
+        else:
+            # 如果客户端id已经在当前集合中，则从集合链中找到第一个不含当前客户端id的集合
+            # 如果没有这样的集合，则创建一个新集合加到list尾部
+            found_set = False
+            for i in range(len(self.advanced_clients_queue)):
+                if msg.vehicle_id not in self.advanced_clients_queue[i]:
+                    found_set = True
+                    self.advanced_clients_list[i].add(msg.vehicle_id)
+                    # 在集合链中的集合加满了的情况，实际上不应该出现这种情况
+                    if len(self.advanced_clients_list[i]) == self.client_num:
+                        print("full set in set list!")
+                    break
+            # 如果没有从集合链中找到符合条件的集合，则新建一个集合加入集合链
+            if found_set == False:
+                print("creating a new set!")
+                new_set = set()
+                new_set.add(msg.vehicle_id)
+                self.advanced_clients_list.append(new_set)
+                
+        # 调用simulationStep()或从路点队列中获取将要发送的Waypoint的过程
         for i in range(self.message_waypoints_num):
-            self.simulationStep()
-            # traci_point = traci.vehicle.getPosition(msg.vehicle_id)
-            temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
-            # print("temp point: ", temp_point.Location)
+            # 悲观模式：如果当前所有client都已经发送action_result报文则执行一步仿真
+            # 乐观模式：当前轮第一个发送action_result的客户端执行一步仿真
+            # 无论乐观或悲观模式，如果当前发送action_result的客户端已经存在在记录客户端id的集合中，则新建一个集合放在集合链的后面以记录新的一轮仿真
+            # 每当执行一次simulationStep()时将当前已经填满的集合从集合链中删除
+            temp_point = None
+            if len(self.client_ids) == self.client_num:
+                self.simulationStep(msg.vehicle_id)
+                # 清空set
+                self.client_ids.clear()
+                temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
+            else:
+                # 当前没有轮到执行仿真，从队列中取出路点，若队列中路点不足则考虑其他做法
+                # 目前的想法是让客户端在本地临时计算下一个路点
+                if len(self.vehicle_clients[msg.vehicle_id].waypoint_queue) == 0:
+                    print("empty queue in vehicle_client! vehicle id: ", msg.vehicle_id)
+                else:
+                    temp_point = self.vehicle_clients[msg.vehicle_id].waypoint_queue.popleft()
             next_action.waypoints[i] = temp_point
             if temp_point is None:
                 # 之前路线行驶完成 重新规划路线
-                print("vehicle simulation ended. Pick a new route")
-                # print("res position is:", res_position)
-                # start_edge = traci.simulation.convertRoad(res_position[0], res_position[1])[0]
-                # end_edge = self.select_random_end_edge()
-                # find_route_res = traci.simulation.findRoute(start_edge, end_edge)
-                # edges_list = find_route_res.edges
-                # rou_name = restart_route_id_prefix + str(self.manual_route_num)
-                # traci.route.add(rou_name, edges_list)
-                # self.manual_route_num += 1
-                # traci.vehicle.add(msg.vehicle_id, rou_name)
-                # lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-                # traci.vehicle.moveToXY(msg.vehicle_id, start_edge, lane, res_position[0], res_position[1], keepRoute=1)
-                # self.simulationStep()
-                # is_restart = True
-                # break
-        
+                print("vehicle simulation ended.")
                 end_pack = end_connection()
                 end_pack.vehicle_id = msg.vehicle_id
                 self.lc.publish(end_connection_keyword, end_pack.encode())
                 return
+        
+        
         # 服务器端仿真完成，发送后续路点给客户端
-        if is_restart:
-            next_action_new = action_package()
-            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-            traci.vehicle.moveToXY(msg.vehicle_id, start_edge, lane, res_position[0], res_position[1], keepRoute=1)
-            for i in range(self.message_waypoints_num):
-                self.simulationStep()
-                temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
-                print("temp_point is ", temp_point.Location)
-                next_action.waypoints[i] = temp_point
-            next_action_new.vehicle_id = msg.vehicle_id
-            self.lc.publish(action_package_keyword, next_action_new.encode())
-        else:
-
-            next_action.vehicle_id = msg.vehicle_id
-            # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(msg.vehicle_id)
-            # next_action.target_speed = traci.vehicle.getSpeed(msg.vehicle_id)
-            self.lc.publish(action_package_keyword, next_action.encode())
+        next_action.vehicle_id = msg.vehicle_id
+        # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(msg.vehicle_id)
+        # next_action.target_speed = traci.vehicle.getSpeed(msg.vehicle_id)
+        self.lc.publish(action_package_keyword, next_action.encode())
         print("action package publish done!")
 
     def suspend_simualtion_handler(self, channel, data):
@@ -381,16 +370,17 @@ class traci_simulator:
     def reset_simulation_handler(self, channel, data):
         pass
 
-    def simulationStep(self):
+    def simulationStep(self, veh_id):
         # 阻塞等待所有客户端都发来action_result再执行仿真
         
         for i in range(1):
             traci.simulationStep()
-        # for (key, value) in self.vehicle_clients.items():
-        #     value.simulation_steps += 1
-        #     if key != veh_id:
-        #         new_pos = self.get_LCM_Waypoint(key)
-        #         value.waypoint_queue.append(new_pos)
+            for (key, value) in self.vehicle_clients.items():
+                value.simulation_steps += 1
+                if key != veh_id:
+                    new_pos = self.get_LCM_Waypoint(key)
+                    value.waypoint_queue.append(new_pos)
+        
 
     def main_loop(self):
         traci.start(self.sumocmd, self.listen_port)
