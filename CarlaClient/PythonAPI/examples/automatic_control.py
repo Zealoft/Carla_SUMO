@@ -753,7 +753,10 @@ class Game_Loop:
         self.init = False
         self.should_publish = True
         self.finish_current_action = False
+        # 客户端和服务端双端事先约定的每次交互发送的Waypoint个数
         self.message_waypoints = 3
+        # 当前从服务端收到的Waypoint个数
+        self.current_message_waypoint_num = 0
         self.action_pack_count = 0
         self.agent = None
         self.world = None
@@ -835,17 +838,18 @@ class Game_Loop:
         que_element = [action_package_keyword, msg]
         self.msg_queue.put(que_element)
 
-    # concrete dealer function of action package.
+    # action_package的具体处理方法，在main程序中调用
     def action_package_dealer(self, msg):
         if msg.vehicle_id != self.veh_id:
             print("invalid vehicle id from message! self id: ", self.veh_id)
             return
         # print("len of msg waypoints: ", len(msg.waypoints))
-        for i in range(self.message_waypoints):
+        # 此处对循环次数作修改，因为初始发送的action_package内合理的Waypoint个数会小于双端约定的Waypoint个数
+        for i in range(msg.valid_num):
             new_point = self.transform_waypoint(msg.waypoints[i])
             # print("new point for vehicle ", msg.vehicle_id, ": ", new_point)
             self.waypoints_buffer.append(new_point)
-
+        self.current_message_waypoint_num = msg.valid_num
         
     def connect_response_handler(self, channel, data):
         msg = connect_response.decode(data)
@@ -931,8 +935,7 @@ class Game_Loop:
             # 在这里进行后续的循环接收消息
 
             '''
-            main loop of the client end.
-            
+            客户端的主要循环程序
             '''
             i_var = 0
             settings = self.world.world.get_settings()
@@ -953,6 +956,7 @@ class Game_Loop:
                     pygame.display.flip()
                 # 是否需要向SUMO服务器发送action result消息
                 should_publish_result_msg = False
+                # 尝试从消息队列中取出消息，若消息队列为空则跳过本次循环
                 try:
                     [keyword, msg] = self.msg_queue.get(timeout=0.01)
                     # print("keyword of message is ", keyword)
@@ -963,7 +967,8 @@ class Game_Loop:
                         # 在收到新的路点消息后丢弃当前缓冲中剩余的路点
                         self.action_package_dealer(msg)
                         # print("waypoint length: ", len(self.waypoints_buffer))
-                        for i in range(self.message_waypoints):
+                        # 从当前的路点队列中取出路点传给agent用于行驶
+                        for i in range(msg.valid_num):
                             temp_waypoint = self.waypoints_buffer.popleft()
                     
                             # print("waypoint in main loop is ", temp_waypoint)
@@ -992,9 +997,10 @@ class Game_Loop:
                 control = self.agent.run_step()
                 if control:
                     self.world.player.apply_control(control)
-                
-                if self.agent.get_finished_waypoints() >= self.message_waypoints:
+                # 从此处判断是否应该向SUMO服务器发送action_result报文
+                if self.agent.get_finished_waypoints() >= self.current_message_waypoint_num:
                     should_publish_result_msg = True
+                # 对红绿灯的临时处理手段，将道路上的所有交通灯改为绿灯
                 if self.world.player.is_at_traffic_light():
                     # print("hello traffic light!")
                     traffic_light = self.world.player.get_traffic_light()
