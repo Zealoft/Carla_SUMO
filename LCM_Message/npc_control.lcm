@@ -19,6 +19,7 @@ struct connect_response
 struct action_package
 {
     string vehicle_id;
+    int8_t valid_num;
     Waypoint waypoints[10];
     double target_speed[3];
 }
