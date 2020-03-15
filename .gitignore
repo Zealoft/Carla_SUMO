@@ -59,3 +59,5 @@ profiler.csv
 *.tar.gz
 SUMOServer/simulations/Town03/Town03-output-tripinfos.xml
 SUMOServer/simulations/Town03/Town03-output-vehroutes.xml
+SUMOServer/simulations/Town03/Town03-output-tripinfos.xml
+SUMOServer/simulations/Town03/Town03-output-vehroutes.xml
