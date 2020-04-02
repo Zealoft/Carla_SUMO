@@ -68,12 +68,13 @@ class Vehicle_Client:
 
 
 class traci_simulator:
-    def __init__(self, cfg_path, num_clients):
+    def __init__(self, args):
+        cfg_path = args.cfg_path
         sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
         self.listen_port = getFreeSocketPort()
-        self.num_clients = num_clients
+        self.num_clients = args.num_clients
         # 等待所有已经连接的client完成行驶后再进行下一步仿真
         self.client_events = []
         self.sumoBinary = 'sumo-gui'
@@ -82,7 +83,9 @@ class traci_simulator:
             "-c", 
             self.config_file_path,
             "--num-clients",
-            str(num_clients)
+            str(self.num_clients),
+            "--step-length",
+            str(args.step_length)
         ]
         print(self.sumocmd)
         self.vehicle_ids = []
@@ -430,22 +433,26 @@ def main():
         type=int,
         help='TCP port to listen to (default: 3200)')
     argparser.add_argument(
-        '-S', '--source',
+        '-C', '--cfg-path',
         default='simulations/Town03/Town03.sumocfg',
         help='source of the sumo config file',
     )
     argparser.add_argument(
-        '-n', '--num_clients',
+        '-n', '--num-clients',
         metavar='N',
         default=1,
         type=int,
         help='number of clients to listen to (default: 1)')
+    argparser.add_argument('--step-length',
+        default=0.05,
+        type=float,
+        help='set fixed delta seconds (default: 0.05s)')
     args = argparser.parse_args()
     # sim_path = args.source.split('.')[0] + '.rou.xml'
 
     # print(sim_path)
     # print(args.source)
-    simulator = traci_simulator(args.source, args.num_clients)
+    simulator = traci_simulator(args)
     # simulator.start_simulation()
     simulator.main_loop()
 
