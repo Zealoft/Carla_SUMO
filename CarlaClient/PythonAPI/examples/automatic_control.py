@@ -135,12 +135,12 @@ class World(object):
         cam_index = self.camera_manager.index if self.camera_manager is not None else 0
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
         # Get a random blueprint.
-        #blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
-        blueprints = self.world.get_blueprint_library().filter("vehicle.physx.*")
-        blueprint = None
+        blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
+        # blueprints = self.world.get_blueprint_library().filter("vehicle.physx.*")
+        # blueprint = None
 
-        while blueprint is None or int(blueprint.get_attribute('number_of_wheels')) == 2:
-            blueprint = random.choice(blueprints)
+        # while blueprint is None or int(blueprint.get_attribute('number_of_wheels')) == 2:
+        #     blueprint = random.choice(blueprints)
         # blueprint = self.world.get_blueprint_library().find('Physx Citroen C3')
         blueprint.set_attribute('role_name', 'hero')
         if blueprint.has_attribute('color'):
@@ -764,6 +764,7 @@ class Game_Loop:
         self.waypoints_buffer = deque(maxlen=600)
         self.self_drive = False
         self.init_controller()
+        self.step_length = args.step_length
     
     # 进一步对各类成员进行初始化工作
     def init_controller(self):
@@ -804,6 +805,21 @@ class Game_Loop:
                 self.lc.publish(reset_simulation_keyword, pack.encode())
             else:
                 local_result_count = self.action_result_count
+
+    def send_info_process(self):
+        pass
+
+    def recv_info_process(self):
+        pass
+
+    # 
+    def tick_process(self):
+        start_time = time.time()
+        self.send_info_process()
+        self.recv_info_process()
+        end_time = time.time()
+        elapsed = end_time - start_time
+        time.sleep(self.step_length - elapsed)
     # from carla transform to lcm waypoint
     def transform_to_lcm_waypoint(self, transform):
         lcm_waypoint = Waypoint()
@@ -937,9 +953,9 @@ class Game_Loop:
             i_var = 0
             settings = self.world.world.get_settings()
             settings.no_rendering_mode = False
-            # settings.fixed_delta_seconds = None
-            settings.synchronous_mode = True
-            settings.fixed_delta_seconds = 0.05
+            settings.fixed_delta_seconds = None
+            # settings.synchronous_mode = True
+            # settings.fixed_delta_seconds = 0.05
             self.world.world.apply_settings(settings)
             # self.world.world.get_map().save_to_disk('map.xodr')
             while True:
@@ -1018,6 +1034,7 @@ class Game_Loop:
                     self.lc.publish(action_result_keyword, action_res_pack.encode())
                     self.action_result_count += 1
                     should_publish_result_msg = False
+                    self.agent.drop_waypoint_buffer()
 
         finally:
             if self.world is not None:
@@ -1085,7 +1102,7 @@ def main():
     argparser.add_argument("-a", "--agent", type=str,
                            choices=["Roaming", "Basic"],
                            help="select which agent to run",
-                           default="Basic")
+                           default="Roaming")
     args = argparser.parse_args()
     print("display: ", args.display)
     args.width, args.height = [int(x) for x in args.res.split('x')]

@@ -54,6 +54,7 @@ import os
 import sys
 
 try:
+    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.6-py3.7-win-amd64.egg')
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
         sys.version_info.minor,
@@ -836,6 +837,12 @@ def game_loop(args):
         controller = KeyboardControl(world, args.autopilot)
 
         clock = pygame.time.Clock()
+        settings = world.world.get_settings()
+        settings.no_rendering_mode = False
+        # settings.fixed_delta_seconds = None
+        settings.synchronous_mode = True
+        # settings.fixed_delta_seconds = 0.05
+        world.world.apply_settings(settings)
         while True:
             clock.tick_busy_loop(60)
             if controller.parse_events(client, world, clock):
