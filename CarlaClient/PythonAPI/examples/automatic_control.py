@@ -778,6 +778,9 @@ class Game_Loop:
         self.suspend_simulation_dealer = threading.Thread(target=self.suspend_simulation_control_process, name='SuspendSimulationThread')
         self.suspend_simulation_dealer.setDaemon(True)
         self.suspend_simulation_dealer.start()
+        self.tick_dealer = threading.Thread(target=self.tick_process, name='TickDealingThread')
+        self.tick_dealer.setDaemon(True)
+        self.tick_dealer.start()
 
     # 监听线程需要执行的过程，仅需要监听LCM消息并将消息放入消息队列等待主线程处理即可
     def message_listen_process(self):
@@ -806,20 +809,54 @@ class Game_Loop:
             else:
                 local_result_count = self.action_result_count
 
+    # Carla -> SUMO 的信息交互
+    # 发送位置和速度信息即可
     def send_info_process(self):
-        pass
+        current_speed = self.world.player.get_velocity()
+        current_transform = self.world.player.get_transform()
+        action_res_pack = action_result()
+        action_res_pack.current_pos = self.transform_to_lcm_waypoint(current_transform)
+        action_res_pack.vehicle_id = self.veh_id
+        # print("current speed: ", current_speed)
+        action_res_pack.current_speed = [
+            current_speed.x,
+            current_speed.y,
+            current_speed.z
+        ]
 
+        self.lc.publish(action_result_keyword, action_res_pack.encode())
+
+    # SUMO -> Carla 的信息交互
+    # 收到新的位置后清空路点缓冲和队列，按照当前收到的路点行驶
     def recv_info_process(self):
-        pass
+        try:
+            [keyword, msg] = self.msg_queue.get(timeout=0.01)
+                # print("keyword of message is ", keyword)
+                # Receive an action package
+            if keyword == action_package_keyword:
+                print("Receive an action package!")
+                self.agent.drop_waypoint_buffer()
+                self.action_package_dealer(msg)
+                for i in range(self.message_waypoints):
+                    temp_waypoint = self.waypoints_buffer.popleft()
+            
+                    # print("waypoint in main loop is ", temp_waypoint)
+                    
+                    self.agent.add_waypoint(temp_waypoint)
+                self.waypoints_buffer.clear()
+        except queue.Empty:
+            pass
 
-    # 
+    # 定时向SUMO服务器同步数据的程序，间隔为step_length
     def tick_process(self):
-        start_time = time.time()
-        self.send_info_process()
-        self.recv_info_process()
-        end_time = time.time()
-        elapsed = end_time - start_time
-        time.sleep(self.step_length - elapsed)
+        while True:
+            start_time = time.time()
+            self.send_info_process()
+            self.recv_info_process()
+            end_time = time.time()
+            elapsed = end_time - start_time
+            print("time elapsed is ", elapsed)
+            time.sleep(self.step_length - elapsed)
     # from carla transform to lcm waypoint
     def transform_to_lcm_waypoint(self, transform):
         lcm_waypoint = Waypoint()
@@ -976,17 +1013,17 @@ class Game_Loop:
                     # Receive an action package
                     if keyword == action_package_keyword:
                         print("Receive an action package!")
-                        self.agent.drop_waypoint_buffer()
-                        # 在收到新的路点消息后丢弃当前缓冲中剩余的路点
-                        self.action_package_dealer(msg)
-                        # print("waypoint length: ", len(self.waypoints_buffer))
-                        for i in range(self.message_waypoints):
-                            temp_waypoint = self.waypoints_buffer.popleft()
+                        # self.agent.drop_waypoint_buffer()
+                        # # 在收到新的路点消息后丢弃当前缓冲中剩余的路点
+                        # self.action_package_dealer(msg)
+                        # # print("waypoint length: ", len(self.waypoints_buffer))
+                        # for i in range(self.message_waypoints):
+                        #     temp_waypoint = self.waypoints_buffer.popleft()
                     
-                            # print("waypoint in main loop is ", temp_waypoint)
+                        #     # print("waypoint in main loop is ", temp_waypoint)
                             
-                            self.agent.add_waypoint(temp_waypoint)
-                        self.waypoints_buffer.clear()
+                        #     self.agent.add_waypoint(temp_waypoint)
+                        # self.waypoints_buffer.clear()
                     elif keyword == connect_response_keyword:
                         self.connect_response_dealer(msg)
                     elif keyword == end_connection_keyword:
@@ -1019,19 +1056,7 @@ class Game_Loop:
                 #         traffic_light.set_state(carla.TrafficLightState.Green)
                 # 获取当前位置和速度信息并发送到SUMO服务器
                 if should_publish_result_msg:
-                    current_speed = self.world.player.get_velocity()
-                    current_transform = self.world.player.get_transform()
-                    action_res_pack = action_result()
-                    action_res_pack.current_pos = self.transform_to_lcm_waypoint(current_transform)
-                    action_res_pack.vehicle_id = self.veh_id
-                    # print("current speed: ", current_speed)
-                    action_res_pack.current_speed = [
-                        current_speed.x,
-                        current_speed.y,
-                        current_speed.z
-                    ]
-
-                    self.lc.publish(action_result_keyword, action_res_pack.encode())
+                    self.send_info_process()
                     self.action_result_count += 1
                     should_publish_result_msg = False
                     self.agent.drop_waypoint_buffer()
