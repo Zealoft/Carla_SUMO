@@ -1124,6 +1124,10 @@ def main():
         type=bool,
         help='whether to display client'
     )
+    argparser.add_argument('--step-length',
+        default=0.05,
+        type=float,
+        help='set fixed delta seconds (default: 0.05s)')
     argparser.add_argument("-a", "--agent", type=str,
                            choices=["Roaming", "Basic"],
                            help="select which agent to run",
