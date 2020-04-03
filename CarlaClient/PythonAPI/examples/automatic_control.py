@@ -780,7 +780,8 @@ class Game_Loop:
         self.suspend_simulation_dealer.start()
         self.tick_dealer = threading.Thread(target=self.tick_process, name='TickDealingThread')
         self.tick_dealer.setDaemon(True)
-        self.tick_dealer.start()
+        # 在完成世界初始化、客户端初始化等工作后再开启这一线程
+        # self.tick_dealer.start()
 
     # 监听线程需要执行的过程，仅需要监听LCM消息并将消息放入消息队列等待主线程处理即可
     def message_listen_process(self):
@@ -913,6 +914,7 @@ class Game_Loop:
         self.veh_id = msg.vehicle_id
         print("veh id: ", self.veh_id)
         self.init_waypoint = msg.init_pos
+        self.tick_dealer.start()
         self.init = True
 
     def end_connection_dealer(self, channel, data):
