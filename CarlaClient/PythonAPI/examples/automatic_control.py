@@ -914,7 +914,7 @@ class Game_Loop:
         self.veh_id = msg.vehicle_id
         print("veh id: ", self.veh_id)
         self.init_waypoint = msg.init_pos
-        self.tick_dealer.start()
+        # self.tick_dealer.start()
         self.init = True
 
     def end_connection_dealer(self, channel, data):
@@ -958,6 +958,7 @@ class Game_Loop:
             print("spawn_point: ", spawn_point)
             self.world.player.set_transform(spawn_point)
             # world.vehicle.set_location(spawn_point.location)
+            self.tick_dealer.start()
             clock = pygame.time.Clock()
             
             # time.sleep(10) 
