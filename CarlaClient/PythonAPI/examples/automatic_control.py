@@ -958,7 +958,7 @@ class Game_Loop:
             print("spawn_point: ", spawn_point)
             self.world.player.set_transform(spawn_point)
             # world.vehicle.set_location(spawn_point.location)
-            self.tick_dealer.start()
+            
             clock = pygame.time.Clock()
             
             # time.sleep(10) 
@@ -998,6 +998,7 @@ class Game_Loop:
             # settings.fixed_delta_seconds = 0.05
             self.world.world.apply_settings(settings)
             # self.world.world.get_map().save_to_disk('map.xodr')
+            self.tick_dealer.start()
             while True:
                 if controller.parse_events(client, self.world, clock):
                     return
@@ -1037,11 +1038,11 @@ class Game_Loop:
                             # self.agent.set_target_speed(20)
                             self.agent.set_sumo_drive(False)
                             # self.agent.compute_next_waypoints(3)
-                            # print("simulation of this vehicle ended. Destroying ego.")
-                            # self.should_publish = False
-                            # if self.world is not None:
-                            #     self.world.destroy()
-                            # return
+                            print("simulation of this vehicle ended. Destroying ego.")
+                            self.should_publish = False
+                            if self.world is not None:
+                                self.world.destroy()
+                            return
                     else:
                         pass
                 except queue.Empty:
@@ -1050,19 +1051,19 @@ class Game_Loop:
                 if control:
                     self.world.player.apply_control(control)
                 
-                if self.agent.get_finished_waypoints() >= self.message_waypoints:
-                    should_publish_result_msg = True
-                # if self.world.player.is_at_traffic_light():
-                #     # print("hello traffic light!")
-                #     traffic_light = self.world.player.get_traffic_light()
-                #     if traffic_light.get_state() == carla.TrafficLightState.Red:
-                #         traffic_light.set_state(carla.TrafficLightState.Green)
-                # 获取当前位置和速度信息并发送到SUMO服务器
-                if should_publish_result_msg:
-                    self.send_info_process()
-                    self.action_result_count += 1
-                    should_publish_result_msg = False
-                    self.agent.drop_waypoint_buffer()
+                # if self.agent.get_finished_waypoints() >= self.message_waypoints:
+                #     should_publish_result_msg = True
+                if self.world.player.is_at_traffic_light():
+                    # print("hello traffic light!")
+                    traffic_light = self.world.player.get_traffic_light()
+                    if traffic_light.get_state() == carla.TrafficLightState.Red:
+                        traffic_light.set_state(carla.TrafficLightState.Green)
+                # # 获取当前位置和速度信息并发送到SUMO服务器
+                # if should_publish_result_msg:
+                #     self.send_info_process()
+                #     self.action_result_count += 1
+                #     should_publish_result_msg = False
+                #     self.agent.drop_waypoint_buffer()
 
         finally:
             if self.world is not None:
@@ -1128,9 +1129,9 @@ def main():
         help='whether to display client'
     )
     argparser.add_argument('--step-length',
-        default=0.05,
+        default=0.5,
         type=float,
-        help='set fixed delta seconds (default: 0.05s)')
+        help='set fixed delta seconds (default: 0.5s)')
     argparser.add_argument("-a", "--agent", type=str,
                            choices=["Roaming", "Basic"],
                            help="select which agent to run",

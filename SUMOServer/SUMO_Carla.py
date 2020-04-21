@@ -444,7 +444,7 @@ def main():
         type=int,
         help='number of clients to listen to (default: 1)')
     argparser.add_argument('--step-length',
-        default=0.05,
+        default=0.5,
         type=float,
         help='set fixed delta seconds (default: 0.05s)')
     args = argparser.parse_args()
