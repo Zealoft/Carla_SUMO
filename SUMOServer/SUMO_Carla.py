@@ -101,8 +101,6 @@ class traci_simulator:
         self.current_order = 1
         # 记录所有客户端的数量，阻塞等待仿真
         self.client_num = 0
-        # 阻塞等待仿真的条件变量
-        self.simulation_conn = threading.Condition()
         # 记录所有已发送结果客户端序号的集合，用于判断是否得到所有客户端的结果
         self.client_ids = set()
         # 初始化所有SUMO子进程
@@ -110,6 +108,9 @@ class traci_simulator:
         self.lc = lcm.LCM()
         # 用id-vehicle对来存储所有客户端
         self.vehicle_clients = {}
+        # 记录所有特殊车辆id，对附近车辆做出避让命令
+        # 目前的做法是存储所有id，以降低时间复杂度，id对应值为True的为特殊车辆
+        self.special_vehicle_ids = {}
         # 监听需要接收的消息
         self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
         self.lc.subscribe(action_result_keyword, self.action_result_handler)
@@ -191,7 +192,10 @@ class traci_simulator:
         print("edge list: ", edges_list)
         return edges_list[len(edges_list) - 1]
 
-    # generate a new vehicle id 
+    '''
+    generate a new vehicle id 
+    产生符合规则的新车辆客户端id并返回
+    '''
     def get_new_vehicle_id(self):
         if self.vehicle_ids.count == 0:
             new_id = vehicle_id_prefix + "0"
@@ -207,9 +211,11 @@ class traci_simulator:
             self.vehicle_ids.append(new_id)
             return new_id
 
-    # function called to create a new vehichle in SUMO Server.
-    # 
-
+    '''
+    在场景中产生新车辆时需要调用的方法
+    获取ID、获取初始路线、构造初始位置、在场景中添加车辆、发送connect_response报文
+    返回值为新车辆的id
+    '''
     def new_vehicle_event(self):
 
         new_id = self.get_new_vehicle_id()
@@ -230,6 +236,7 @@ class traci_simulator:
                 continue
             break
         new_vehicle = Vehicle_Client(new_id, veh_rou_id)
+        # 将新的车辆结构体加入到dict中
         self.vehicle_clients[new_id] = new_vehicle
         self.simulationStep()
         # 构造connect_response消息并发送
@@ -250,6 +257,11 @@ class traci_simulator:
         print("Received message on channel ", channel)
         msg = connect_request.decode(data)
         id = self.new_vehicle_event()
+        # 判断客户端是否为特殊车辆
+        if msg.is_special:
+            self.special_vehicle_ids[id] = True
+        else:
+            self.special_vehicle_ids[id] = False
         next_action = action_package()
         for i in range(self.message_waypoints_num):
             self.simulationStep()
@@ -268,6 +280,8 @@ class traci_simulator:
         # print("action result position: ", msg.current_pos.Location)
         res_position = self.transform_LCM_to_SUMO_Waypoint(msg.current_pos)
         is_restart = False
+        # 获取当前发送action_result车辆的位置信息
+        # 如果位置信息获取失败则说明车辆在SUMO场景中已经被销毁
         try:
             print("action result position: ", res_position)
             # print("current position in SUMO: ", traci.vehicle.getPosition(msg.vehicle_id))
@@ -301,7 +315,13 @@ class traci_simulator:
             end_pack.vehicle_id = msg.vehicle_id
             self.lc.publish(end_connection_keyword, end_pack.encode())
             return
-        # if not is_restart:
+        # 如果当前车辆是特殊车辆，则获取所有邻近车辆的车道信息，并判断是否需要进行换道
+        if self.special_vehicle_ids[msg.vehicle_id] is True:
+            # 获取临近车辆信息，2代表010，即查询左侧、前侧的所有车辆
+            neighbor_list = traci.vehicle.getNeighbors(msg.vehicle_id, 2)
+            for (key, value) in neighbor_list:
+                print("key: ", key, "value: ", value)
+        # 获取车辆在交通仿真场景的位置并根据客户端发来的报文进行更新
         try:
             # pass
             lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
@@ -318,7 +338,8 @@ class traci_simulator:
         # if traci.vehicle.getSpeed(msg.vehicle_id) <= 1.0:
         #     traci.vehicle.slowDown(msg.vehicle_id, 20.0, 10000)
         next_action = action_package()
-        
+        # 调用仿真并获取车辆后续位置，发送action_package报文
+        # @TODO：将每个车辆客户端均调用仿真改为第一个车辆客户端调用仿真并将其他车辆的位置信息放入队列
         for i in range(self.message_waypoints_num):
             self.simulationStep()
             # traci_point = traci.vehicle.getPosition(msg.vehicle_id)
@@ -386,15 +407,19 @@ class traci_simulator:
 
     def simulationStep(self):
         # 阻塞等待所有客户端都发来action_result再执行仿真
-        
         for i in range(1):
             traci.simulationStep()
-        # for (key, value) in self.vehicle_clients.items():
-        #     value.simulation_steps += 1
-        #     if key != veh_id:
-        #         new_pos = self.get_LCM_Waypoint(key)
-        #         value.waypoint_queue.append(new_pos)
 
+    # 第一个客户端调用仿真的函数版本
+    # 将其他车辆的路点放入其对应的队列中暂存
+    def single_simulationStep(self, veh_id):
+        for i in range(1):
+            traci.simulationStep()
+            for (key, value) in self.vehicle_clients.items():
+                value.simulation_steps += 1
+                if key != veh_id:
+                    new_pos = self.get_LCM_Waypoint(key)
+                    value.waypoint_queue.append(new_pos)
     def main_loop(self):
         traci.start(self.sumocmd, self.listen_port)
         # no need to add routes from file.
