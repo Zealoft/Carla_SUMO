@@ -217,7 +217,7 @@ class traci_simulator:
         # 从所有预设路线的前一半中随机选取一个作为初始路线
         # 尝试解决非法路线的问题
         rou_cnt = int(traci.route.getIDCount())
-        print("rou count: ", rou_cnt)
+        # print("rou count: ", rou_cnt)
         veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
         print('route id for the client: ', veh_rou_id)
         # # add vehicle过程中可能出现invalid route的Exception，故不断重新选择路线进行尝试直到不抛异常

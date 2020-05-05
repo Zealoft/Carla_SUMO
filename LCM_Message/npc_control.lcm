@@ -8,6 +8,7 @@ struct Waypoint
 
 struct connect_request
 {
+    boolean is_special;
 }
 
 struct connect_response
