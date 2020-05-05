@@ -97,7 +97,7 @@ class traci_simulator:
         # route count from .rou.xml file.
         self.file_route_num = 0
         self.offsets = net_xml_tree.read_offset()
-        self.message_waypoints_num = 3
+        self.message_waypoints_num = args.message_waypoints
         self.current_order = 1
         # 记录所有客户端的数量，阻塞等待仿真
         self.client_num = 0
@@ -447,6 +447,10 @@ def main():
         default=0.5,
         type=float,
         help='set fixed delta seconds (default: 0.05s)')
+    argparser.add_argument('--message-waypoints',
+        default=3,
+        type=int,
+        help='set message waypoints(default: 5)')
     args = argparser.parse_args()
     # sim_path = args.source.split('.')[0] + '.rou.xml'
 

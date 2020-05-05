@@ -11,3 +11,4 @@ from .action_result import action_result
 from .end_connection import end_connection
 from .suspend_simulation import suspend_simulation
 from .reset_simulation import reset_simulation
+from .traffic_light_notify import traffic_light_notify

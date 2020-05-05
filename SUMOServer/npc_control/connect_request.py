@@ -10,14 +10,14 @@ except ImportError:
 import struct
 
 class connect_request(object):
-    __slots__ = []
+    __slots__ = ["is_special"]
 
-    __typenames__ = []
+    __typenames__ = ["boolean"]
 
-    __dimensions__ = []
+    __dimensions__ = [None]
 
     def __init__(self):
-        pass
+        self.is_special = False
 
     def encode(self):
         buf = BytesIO()
@@ -26,7 +26,7 @@ class connect_request(object):
         return buf.getvalue()
 
     def _encode_one(self, buf):
-        pass
+        buf.write(struct.pack(">b", self.is_special))
 
     def decode(data):
         if hasattr(data, 'read'):
@@ -40,13 +40,14 @@ class connect_request(object):
 
     def _decode_one(buf):
         self = connect_request()
+        self.is_special = bool(struct.unpack('b', buf.read(1))[0])
         return self
     _decode_one = staticmethod(_decode_one)
 
     _hash = None
     def _get_hash_recursive(parents):
         if connect_request in parents: return 0
-        tmphash = (0x12345678) & 0xffffffffffffffff
+        tmphash = (0x91bbb4ec9e35ec8c) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)

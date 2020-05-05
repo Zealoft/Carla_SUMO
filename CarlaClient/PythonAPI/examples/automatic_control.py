@@ -753,7 +753,7 @@ class Game_Loop:
         self.init = False
         self.should_publish = True
         self.finish_current_action = False
-        self.message_waypoints = 3
+        self.message_waypoints = args.message_waypoints
         self.action_pack_count = 0
         self.agent = None
         self.world = None
@@ -763,6 +763,7 @@ class Game_Loop:
         self.action_result_count = 0
         self.waypoints_buffer = deque(maxlen=600)
         self.self_drive = False
+        self.is_special = args.special_client
         self.init_controller()
         self.step_length = args.step_length
     
@@ -937,6 +938,7 @@ class Game_Loop:
                     (self.args.width, self.args.height),
                     pygame.HWSURFACE | pygame.DOUBLEBUF)
             connect_request_msg = connect_request()
+            connect_request_msg.is_special = self.is_special 
             self.lc.publish(connect_request_keyword, connect_request_msg.encode())
 
             print("connect request message publish done, waiting for connecting response...")
@@ -1128,10 +1130,20 @@ def main():
         type=bool,
         help='whether to display client'
     )
+    argparser.add_argument(
+        '--special-client',
+        default=False,
+        type=bool,
+        help='whether acts as special client'
+    )
     argparser.add_argument('--step-length',
         default=0.5,
         type=float,
         help='set fixed delta seconds (default: 0.5s)')
+    argparser.add_argument('--message-waypoints',
+        default=3,
+        type=int,
+        help='set message waypoints(default: 5)')
     argparser.add_argument("-a", "--agent", type=str,
                            choices=["Roaming", "Basic"],
                            help="select which agent to run",
