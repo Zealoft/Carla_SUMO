@@ -69,7 +69,7 @@ except ImportError:
 # -- find carla module ---------------------------------------------------------
 # ==============================================================================
 try:
-    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.6-py3.7-win-amd64.egg')
+    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.8-py3.7-win-amd64.egg')
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
         sys.version_info.minor,
@@ -135,12 +135,12 @@ class World(object):
         cam_index = self.camera_manager.index if self.camera_manager is not None else 0
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
         # Get a random blueprint.
-        #blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
-        blueprints = self.world.get_blueprint_library().filter("vehicle.physx.*")
-        blueprint = None
+        blueprint = random.choice(self.world.get_blueprint_library().filter(self._actor_filter))
+        # blueprints = self.world.get_blueprint_library().filter("vehicle.physx.*")
+        # blueprint = None
 
-        while blueprint is None or int(blueprint.get_attribute('number_of_wheels')) == 2:
-            blueprint = random.choice(blueprints)
+        # while blueprint is None or int(blueprint.get_attribute('number_of_wheels')) == 2:
+        #     blueprint = random.choice(blueprints)
         # blueprint = self.world.get_blueprint_library().find('Physx Citroen C3')
         blueprint.set_attribute('role_name', 'hero')
         if blueprint.has_attribute('color'):
