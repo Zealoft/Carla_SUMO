@@ -1018,6 +1018,11 @@ class Game_Loop:
 
 
 
+class agent_based_client(self):
+
+    def __init__(self):
+        super().__init__()
+        
 
 
 
