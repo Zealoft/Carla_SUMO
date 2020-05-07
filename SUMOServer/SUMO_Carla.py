@@ -164,8 +164,6 @@ class traci_simulator:
             return new_id
 
     # function called to create a new vehichle in SUMO Server.
-    # 
-
     def new_vehicle_event(self):
 
         new_id = self.get_new_vehicle_id()
@@ -221,45 +219,24 @@ class traci_simulator:
     def action_result_handler(self, channel, data):
         print("Received message on channel ", channel)
         msg = action_result.decode(data)
-        # print("action result position: ", msg.current_pos.Location)
         res_position = self.transform_LCM_to_SUMO_Waypoint(msg.current_pos)
         is_restart = False
         try:
             print("action result position: ", res_position)
-            # print("current position in SUMO: ", traci.vehicle.getPosition(msg.vehicle_id))
             print("action result vehicle id: ", msg.vehicle_id)
             lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
             edge = traci.vehicle.getRoadID(msg.vehicle_id)
             edge = edge.split(".")[0]
             if traci.vehicle.isStopped(msg.vehicle_id):
                 traci.vehicle.resume(msg.vehicle_id)
-            # print("traci edge: ", edge)
-            # print("traci lane: ", lane)
-            # print("lane: ", int(lane), ", edge: ", int(edge))
         except traci.exceptions.TraCIException:
             # 之前路线行驶完成 重新规划路线
             print("vehicle simulation ended. Pick a new route")
-            # print("res position is:", res_position)
-            # start_edge = traci.simulation.convertRoad(res_position[0], res_position[1])[0]
-            # end_edge = self.select_random_end_edge()
-            # find_route_res = traci.simulation.findRoute(start_edge, end_edge)
-            # edges_list = find_route_res.edges
-            # rou_name = restart_route_id_prefix + str(self.manual_route_num)
-            # traci.route.add(rou_name, edges_list)
-            # self.manual_route_num += 1
-            # traci.vehicle.add(msg.vehicle_id, rou_name)
-            # lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-            # traci.vehicle.moveToXY(msg.vehicle_id, start_edge, lane, res_position[0], res_position[1], keepRoute=1)
-            # self.simulationStep()
-            # is_restart = True
-
             end_pack = end_connection()
             end_pack.vehicle_id = msg.vehicle_id
             self.lc.publish(end_connection_keyword, end_pack.encode())
             return
-        # if not is_restart:
         try:
-            # pass
             lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
             edge = traci.vehicle.getRoadID(msg.vehicle_id)
             edge = edge.split(".")[0]
@@ -268,11 +245,6 @@ class traci_simulator:
             print("traci fatal error caught")
             return
         print("position after movetoxy(): ", traci.vehicle.getPosition(msg.vehicle_id))
-        # 如果当前是停车状态，则恢复行驶
-        # if traci.vehicle.isStopped(msg.vehicle_id):
-        #     traci.vehicle.resume(msg.vehicle_id)
-        # if traci.vehicle.getSpeed(msg.vehicle_id) <= 1.0:
-        #     traci.vehicle.slowDown(msg.vehicle_id, 20.0, 10000)
         next_action = action_package()
         
         for i in range(self.message_waypoints_num):
@@ -284,21 +256,6 @@ class traci_simulator:
             if temp_point is None:
                 # 之前路线行驶完成 重新规划路线
                 print("vehicle simulation ended. Pick a new route")
-                # print("res position is:", res_position)
-                # start_edge = traci.simulation.convertRoad(res_position[0], res_position[1])[0]
-                # end_edge = self.select_random_end_edge()
-                # find_route_res = traci.simulation.findRoute(start_edge, end_edge)
-                # edges_list = find_route_res.edges
-                # rou_name = restart_route_id_prefix + str(self.manual_route_num)
-                # traci.route.add(rou_name, edges_list)
-                # self.manual_route_num += 1
-                # traci.vehicle.add(msg.vehicle_id, rou_name)
-                # lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-                # traci.vehicle.moveToXY(msg.vehicle_id, start_edge, lane, res_position[0], res_position[1], keepRoute=1)
-                # self.simulationStep()
-                # is_restart = True
-                # break
-        
                 end_pack = end_connection()
                 end_pack.vehicle_id = msg.vehicle_id
                 self.lc.publish(end_connection_keyword, end_pack.encode())
@@ -343,11 +300,6 @@ class traci_simulator:
     def simulationStep(self):
         for i in range(1):
             traci.simulationStep()
-        # for (key, value) in self.vehicle_clients.items():
-        #     value.simulation_steps += 1
-        #     if key != veh_id:
-        #         new_pos = self.get_LCM_Waypoint(key)
-        #         value.waypoint_queue.append(new_pos)
 
     def main_loop(self):
         traci.start(self.sumocmd)
@@ -356,20 +308,15 @@ class traci_simulator:
         for route in self.routes:
             route_name = file_route_id_prefix + str(i)
             traci.route.add(route_name, route)
-            # print(traci.route.getEdges(route_name))
             i += 1
             self.file_route_num += 1
         print("begin listening LCM messages...")
-        # print("find_route result: ", type(find_route_res))
-        # print("traci simulation test type: ", type(traci.simulation.convertRoad(0.0, 0.0)))
         while True:
             try:
                 self.lc.handle()
             except KeyboardInterrupt:
                 sys.exit()
                 return
-        # while True:
-        #     self.lc.handle()
 
 
 def main():

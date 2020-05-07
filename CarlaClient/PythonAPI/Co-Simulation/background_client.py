@@ -25,6 +25,37 @@ import sys
 import weakref
 import time
 
+import socket
+import subprocess
+from collections import deque
+# 线程安全的队列实现
+from queue import Queue
+import queue
+import threading, time
+
+# ------------------IMPORT MESSAGES---------------------
+import lcm
+from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation, reset_simulation
+from xml_reader import XML_Tree
+
+
+
+# ------------------IMPORT SUMO-------------------------
+if 'SUMO_HOME' in os.environ:
+    tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
+    print("current SUMO Path is " + tools)
+    sys.path.append(tools)
+    print('sumo path set done')
+else:
+    sys.exit("please declare environmentvariable 'SUMO_HOME'")
+import traci
+import traci.constants as tc
+import random
+
+print("traci import done")
+
+# ------------------IMPORT PYGAME----------------------------
+
 try:
     import pygame
     from pygame.locals import KMOD_CTRL
@@ -730,14 +761,7 @@ class CameraManager(object):
 # ==============================================================================
 # -- game_loop() ---------------------------------------------------------
 # ==============================================================================
-import lcm
-# 使用多线程的方法来监听LCM消息
-import threading, time
-from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation, reset_simulation
-from collections import deque
-# 线程安全的队列实现
-from queue import Queue
-import queue
+
 connect_request_keyword = "connect_request"
 connect_response_keyword = "connect_response"
 action_package_keyword = "action_package"
@@ -764,6 +788,7 @@ class Game_Loop:
         self.waypoints_buffer = deque(maxlen=600)
         self.self_drive = False
         self.init_controller()
+        self.cfg_path = ""
     
     # 进一步对各类成员进行初始化工作
     def init_controller(self):
@@ -777,6 +802,14 @@ class Game_Loop:
         self.suspend_simulation_dealer = threading.Thread(target=self.suspend_simulation_control_process, name='SuspendSimulationThread')
         self.suspend_simulation_dealer.setDaemon(True)
         self.suspend_simulation_dealer.start()
+        self.sumo_thread = threading.Thread(target=self.sumo_scenario_process, name='SUMOThread')
+        self.sumo_thread.setDaemon(True)
+        self.sumo_thread.start()
+
+    
+    def sumo_scenario_process(self):
+        simulator = traci_simulator(self.cfg_path)
+        simulator.main_loop()
 
     # 监听线程需要执行的过程，仅需要监听LCM消息并将消息放入消息队列等待主线程处理即可
     def message_listen_process(self):
@@ -809,14 +842,13 @@ class Game_Loop:
         lcm_waypoint = Waypoint()
         lcm_waypoint.Location = [transform.location.x, -1 * transform.location.y, transform.location.z]
         lcm_waypoint.Rotation = [transform.rotation.pitch, transform.rotation.yaw, transform.rotation.roll]
-        print("lcm waypoint location: ", lcm_waypoint.Location)
+        # print("lcm waypoint location: ", lcm_waypoint.Location)
 
         return lcm_waypoint
     
     def transform_waypoint(self, lcm_waypoint):
         """
         transfrom from LCM waypoint structure to local_planner waypoint structure.
-
         """
         new_waypoint = carla.libcarla.Transform()
         new_waypoint.location.x = lcm_waypoint.Location[0]
@@ -1015,12 +1047,252 @@ class Game_Loop:
             pygame.quit()
 
 
+file_route_id_prefix = "file_route_"
+new_route_id_prefix = "manual_route_"
+vehicle_id_prefix = "manual_vehicle_"
+restart_route_id_prefix = "restart_route_"
 
+connect_request_keyword = "connect_request"
+connect_response_keyword = "connect_response"
+action_result_keyword = "action_result"
+action_package_keyword = "action_package"
+end_connection_keyword = "end_connection"
+suspend_simulation_keyword = "suspend_simulation"
+reset_simulation_keyword = "reset_simulation"
 
+class traci_simulator:
+    def __init__(self, cfg_path):
+        sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
+        sim_net_path = cfg_path.split('.')[0] + '.net.xml'
+        self.config_file_path = cfg_path
+        self.sumoBinary = 'sumo'
+        self.sumocmd = [self.sumoBinary, "-c", self.config_file_path]
+        rou_xml_tree = XML_Tree(sim_rou_path)
+        net_xml_tree = XML_Tree(sim_net_path)
+        self.routes = rou_xml_tree.read_routes()
+        # new route count
+        self.manual_route_num = 0
+        # route count from .rou.xml file.
+        self.file_route_num = 0
+        self.offsets = net_xml_tree.read_offset()
+        self.message_waypoints_num = 3
+        self.lc = lcm.LCM()
+        # 用id-vehicle对来存储所有客户端
+        self.vehicle_clients = {}
+        # 监听需要接收的消息
+        self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
+        self.lc.subscribe(action_result_keyword, self.action_result_handler)
+        self.lc.subscribe(suspend_simulation_keyword, self.suspend_simualtion_handler)
+        self.lc.subscribe(reset_simulation_keyword, self.reset_simulation_handler)
 
-class agent_based_client(self):
+    """
+    transform from LCM waypoint to TraCi waypoint which will be used here
+    """
 
-    def __init__(self):
+    def transform_LCM_to_SUMO_Waypoint(self, waypoint):
+        res_point = (
+            waypoint.Location[0] + self.offsets[0],
+            waypoint.Location[1] + self.offsets[1]
+        )
+        return res_point
+
+    """
+    transform from Traci waypoint to LCM waypoint which will be used in Carla
+    """
+
+    def transform_SUMO_to_LCM_Waypoint(self, waypoint, height, angle):
+        lcm_waypoint = Waypoint()
+        lcm_waypoint.Location = [
+            waypoint[0] - self.offsets[0],
+            waypoint[1] - self.offsets[1],
+            height
+        ]
+        lcm_waypoint.Rotation = [0.0, angle, 0.0]
+        return lcm_waypoint
+
+    def get_LCM_Waypoint(self, id):
+        try:
+            traci_point = traci.vehicle.getPosition(id)
+            # print(traci_point)
+            height = traci.vehicle.getHeight(id)
+            traci_angle = traci.vehicle.getAngle(id)
+            # print("angle: ", traci_angle)
+            lcm_waypoint = Waypoint()
+
+            lcm_waypoint.Location = [
+                traci_point[0] - self.offsets[0],
+                traci_point[1] - self.offsets[1],
+                height
+            ]
+            lcm_waypoint.Rotation = [0.0, traci_angle, 0.0]
+            return lcm_waypoint
+        except traci.exceptions.TraCIException:
+            # print("traci exception during getting vehicle info")
+            return None
+        except Exception:
+            print("other error happened")
+            return None
+
+    # function called to select a random edge from file routes.
+    def select_random_end_edge(self):
+        rou_index = random.randint(0, self.file_route_num - 1)
+        rou_id = file_route_id_prefix + str(rou_index)
+        edges_list = traci.route.getEdges(rou_id)
+        return edges_list[len(edges_list) - 1]
+
+    # generate a new vehicle id 
+    def get_new_vehicle_id(self):
+        if self.vehicle_ids.count == 0:
+            new_id = vehicle_id_prefix + "0"
+            self.vehicle_ids.append(new_id)
+            return new_id
+        else:
+            maxid = -1
+            for id in self.vehicle_ids:
+                id_num = int(id.split('_')[2])
+                if id_num > maxid:
+                    maxid = id_num
+            new_id = vehicle_id_prefix + str(maxid + 1)
+            self.vehicle_ids.append(new_id)
+            return new_id
+
+    # function called to create a new vehichle in SUMO Server.
+    def new_vehicle_event(self):
+        new_id = self.get_new_vehicle_id()
+        rou_cnt = int(traci.route.getIDCount())
+        veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
+        # # add vehicle过程中可能出现invalid route的Exception，故不断重新选择路线进行尝试直到不抛异常
+        while True:
+            try:
+                traci.vehicle.add(new_id, veh_rou_id)
+            except Exception:
+                # 重新选择路线
+                veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
+                continue
+            break
+        new_vehicle = Vehicle_Client(new_id, veh_rou_id)
+        self.vehicle_clients[new_id] = new_vehicle
+        self.simulationStep()
+        # 构造connect_response消息并发送
+        msg = connect_response()
+        msg.vehicle_id = new_id
+        init_pos_way = self.get_LCM_Waypoint(new_id)
+        while init_pos_way.Location[0] > 10000 or init_pos_way.Location[0] < -10000:
+            self.simulationStep()
+            init_pos_way = self.get_LCM_Waypoint(new_id)
+        init_pos_way.Location[2] += 5
+        msg.init_pos = init_pos_way
+        self.lc.publish(connect_response_keyword, msg.encode())
+        return new_id
+
+    # 有客户端发来连接请求，添加车辆并进行仿真
+    def connect_request_handler(self, channel, data):
+        msg = connect_request.decode(data)
+        id = self.new_vehicle_event()
+        next_action = action_package()
+        for i in range(self.message_waypoints_num):
+            self.simulationStep()
+            next_action.waypoints[i] = self.get_LCM_Waypoint(id)
+        next_action.vehicle_id = id
+        # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(id)
+        # next_action.target_speed = traci.vehicle.getSpeed(id)
+        self.lc.publish(action_package_keyword, next_action.encode())
+
+    # 有客户端发来行驶结果，等待所有车辆发来结果或到达最大等待时间后进行下一步仿真
+    # 根据车辆id设置相应的车辆的实际状态
+    def action_result_handler(self, channel, data):
+        msg = action_result.decode(data)
+        res_position = self.transform_LCM_to_SUMO_Waypoint(msg.current_pos)
+        is_restart = False
+        try:
+            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
+            edge = traci.vehicle.getRoadID(msg.vehicle_id)
+            edge = edge.split(".")[0]
+            if traci.vehicle.isStopped(msg.vehicle_id):
+                traci.vehicle.resume(msg.vehicle_id)
+        except traci.exceptions.TraCIException:
+            # 之前路线行驶完成 重新规划路线
+            end_pack = end_connection()
+            end_pack.vehicle_id = msg.vehicle_id
+            self.lc.publish(end_connection_keyword, end_pack.encode())
+            return
+        try:
+            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
+            edge = traci.vehicle.getRoadID(msg.vehicle_id)
+            edge = edge.split(".")[0]
+            traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, res_position[0], res_position[1], keepRoute=1)
+        except traci.exceptions.FatalTraCIError:
+            print("traci fatal error caught")
+            return
+        next_action = action_package()
+        
+        for i in range(self.message_waypoints_num):
+            self.simulationStep()
+            # traci_point = traci.vehicle.getPosition(msg.vehicle_id)
+            temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
+            # print("temp point: ", temp_point.Location)
+            next_action.waypoints[i] = temp_point
+            if temp_point is None:
+                # 之前路线行驶完成 重新规划路线
+                end_pack = end_connection()
+                end_pack.vehicle_id = msg.vehicle_id
+                self.lc.publish(end_connection_keyword, end_pack.encode())
+                return
+        # 服务器端仿真完成，发送后续路点给客户端
+        if is_restart:
+            next_action_new = action_package()
+            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
+            traci.vehicle.moveToXY(msg.vehicle_id, start_edge, lane, res_position[0], res_position[1], keepRoute=1)
+            for i in range(self.message_waypoints_num):
+                self.simulationStep()
+                temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
+                next_action.waypoints[i] = temp_point
+            next_action_new.vehicle_id = msg.vehicle_id
+            self.lc.publish(action_package_keyword, next_action_new.encode())
+        else:
+
+            next_action.vehicle_id = msg.vehicle_id
+            # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(msg.vehicle_id)
+            # next_action.target_speed = traci.vehicle.getSpeed(msg.vehicle_id)
+            self.lc.publish(action_package_keyword, next_action.encode())
+
+    def suspend_simualtion_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = suspend_simulation.decode(data)
+        current_pos = self.transform_LCM_to_SUMO_Waypoint(msg.current_pos)
+        print("id ", msg.vehicle_id, ": suspend simulation. current pos: ", current_pos)
+        try:
+            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
+            edge = traci.vehicle.getRoadID(msg.vehicle_id)
+            edge = edge.split(".")[0]
+            traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, current_pos[0], current_pos[1], keepRoute=1)
+            traci.vehicle.setStop(msg.vehicle_id, edge, until=10000)
+        except traci.exceptions.TraCIException:
+            print("traci exception. ")
+
+    def reset_simulation_handler(self, channel, data):
+        pass
+
+    def simulationStep(self):
+        for i in range(1):
+            traci.simulationStep()
+
+    def main_loop(self):
+        traci.start(self.sumocmd)
+        # no need to add routes from file.
+        i = 0
+        for route in self.routes:
+            route_name = file_route_id_prefix + str(i)
+            traci.route.add(route_name, route)
+            i += 1
+            self.file_route_num += 1
+        while True:
+            try:
+                self.lc.handle()
+
+class agent_based_client:
+
+    def __init__(self, args):
         super().__init__()
         
 
