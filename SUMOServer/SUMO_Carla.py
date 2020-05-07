@@ -74,6 +74,7 @@ class traci_simulator:
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
         self.listen_port = getFreeSocketPort()
+        print("listen port: ", self.listen_port)
         self.num_clients = args.num_clients
         # 等待所有已经连接的client完成行驶后再进行下一步仿真
         self.client_events = []
@@ -324,10 +325,11 @@ class traci_simulator:
         # 获取车辆在交通仿真场景的位置并根据客户端发来的报文进行更新
         try:
             # pass
-            lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
-            edge = traci.vehicle.getRoadID(msg.vehicle_id)
-            edge = edge.split(".")[0]
-            traci.vehicle.moveToXY(msg.vehicle_id, edge, lane, res_position[0], res_position[1], keepRoute=1)
+            # lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
+            # edge = traci.vehicle.getRoadID(msg.vehicle_id)
+            # edge = edge.split(".")[0]
+            traci.vehicle.moveToXY(msg.vehicle_id, "", 0, res_position[0], res_position[1], keepRoute=1)
+            # traci.vehicle.moveToXY(vehicle_id, "", 0, loc_x, loc_y, angle=yaw, keepRoute=2)
         except traci.exceptions.FatalTraCIError:
             print("traci fatal error caught")
             return

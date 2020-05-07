@@ -69,7 +69,7 @@ except ImportError:
 # -- find carla module ---------------------------------------------------------
 # ==============================================================================
 try:
-    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.6-py3.7-win-amd64.egg')
+    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.8-py3.7-win-amd64.egg')
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
         sys.version_info.minor,
@@ -832,7 +832,7 @@ class Game_Loop:
     # 收到新的位置后清空路点缓冲和队列，按照当前收到的路点行驶
     def recv_info_process(self):
         try:
-            [keyword, msg] = self.msg_queue.get(timeout=0.01)
+            [keyword, msg] = self.msg_queue.get(timeout=0.005)
                 # print("keyword of message is ", keyword)
                 # Receive an action package
             if keyword == action_package_keyword:
@@ -841,7 +841,12 @@ class Game_Loop:
                 self.action_package_dealer(msg)
                 for i in range(self.message_waypoints):
                     temp_waypoint = self.waypoints_buffer.popleft()
-            
+                    # self.world.player.set_transform(temp_waypoint)
+                    # vehicle = self.world.world.get_actor(self.world.player.id)
+                    # if vehicle is None:
+                    #     print('cannot find vehicle!')
+                    #     return False
+                    # vehicle.set_transform(temp_waypoint)
                     # print("waypoint in main loop is ", temp_waypoint)
                     
                     self.agent.add_waypoint(temp_waypoint)
@@ -997,7 +1002,7 @@ class Game_Loop:
             settings.no_rendering_mode = False
             settings.fixed_delta_seconds = None
             # settings.synchronous_mode = True
-            # settings.fixed_delta_seconds = 0.05
+            # settings.fixed_delta_seconds = self.args.step_length
             self.world.world.apply_settings(settings)
             # self.world.world.get_map().save_to_disk('map.xodr')
             self.tick_dealer.start()
@@ -1007,6 +1012,8 @@ class Game_Loop:
                 # as soon as the server is ready continue!
                 if not self.world.world.wait_for_tick(10.0):
                     continue
+                # self.send_info_process()
+                # self.recv_info_process()
                 self.world.tick(clock)
                 if self.args.display:
                     self.world.render(display)
