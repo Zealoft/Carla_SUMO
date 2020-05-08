@@ -9,7 +9,7 @@ except ImportError:
     from io import BytesIO
 import struct
 
-class connect_request(object):
+class initial_response(object):
     __slots__ = ["vehicle_id"]
 
     __typenames__ = ["string"]
@@ -21,7 +21,7 @@ class connect_request(object):
 
     def encode(self):
         buf = BytesIO()
-        buf.write(connect_request._get_packed_fingerprint())
+        buf.write(initial_response._get_packed_fingerprint())
         self._encode_one(buf)
         return buf.getvalue()
 
@@ -36,13 +36,13 @@ class connect_request(object):
             buf = data
         else:
             buf = BytesIO(data)
-        if buf.read(8) != connect_request._get_packed_fingerprint():
+        if buf.read(8) != initial_response._get_packed_fingerprint():
             raise ValueError("Decode error")
-        return connect_request._decode_one(buf)
+        return initial_response._decode_one(buf)
     decode = staticmethod(decode)
 
     def _decode_one(buf):
-        self = connect_request()
+        self = initial_response()
         __vehicle_id_len = struct.unpack('>I', buf.read(4))[0]
         self.vehicle_id = buf.read(__vehicle_id_len)[:-1].decode('utf-8', 'replace')
         return self
@@ -50,7 +50,7 @@ class connect_request(object):
 
     _hash = None
     def _get_hash_recursive(parents):
-        if connect_request in parents: return 0
+        if initial_response in parents: return 0
         tmphash = (0xd77125401457135d) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
@@ -58,8 +58,8 @@ class connect_request(object):
     _packed_fingerprint = None
 
     def _get_packed_fingerprint():
-        if connect_request._packed_fingerprint is None:
-            connect_request._packed_fingerprint = struct.pack(">Q", connect_request._get_hash_recursive([]))
-        return connect_request._packed_fingerprint
+        if initial_response._packed_fingerprint is None:
+            initial_response._packed_fingerprint = struct.pack(">Q", initial_response._get_hash_recursive([]))
+        return initial_response._packed_fingerprint
     _get_packed_fingerprint = staticmethod(_get_packed_fingerprint)
 

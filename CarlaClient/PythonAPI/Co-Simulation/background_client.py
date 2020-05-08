@@ -35,8 +35,9 @@ import threading, time
 
 # ------------------IMPORT MESSAGES---------------------
 import lcm
-from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation, reset_simulation
+from npc_control import connect_request, connect_response, Waypoint, action_result, action_package, end_connection, suspend_simulation, reset_simulation, initial_response, initial_request
 from xml_reader import XML_Tree
+from keywords import Keywords
 
 
 
@@ -51,6 +52,7 @@ else:
 import traci
 import traci.constants as tc
 import random
+from sumolib.miscutils import getFreeSocketPort
 
 print("traci import done")
 
@@ -762,18 +764,12 @@ class CameraManager(object):
 # -- game_loop() ---------------------------------------------------------
 # ==============================================================================
 
-connect_request_keyword = "connect_request"
-connect_response_keyword = "connect_response"
-action_package_keyword = "action_package"
-action_result_keyword = "action_result"
-end_connection_keyword = "end_connection"
-suspend_simulation_keyword = "suspend_simulation"
-reset_simulation_keyword = "reset_simulation"
 
 class Game_Loop:
-    def __init__(self, args):
+    def __init__(self, args, id, keywords):
         self.init_waypoint = None
-        self.veh_id = None
+        self.veh_id = id
+        self.keywords = keywords
         self.init = False
         self.should_publish = True
         self.finish_current_action = False
@@ -788,13 +784,13 @@ class Game_Loop:
         self.waypoints_buffer = deque(maxlen=600)
         self.self_drive = False
         self.init_controller()
-        self.cfg_path = ""
+        
     
     # 进一步对各类成员进行初始化工作
     def init_controller(self):
-        self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
-        self.lc.subscribe(action_package_keyword, self.action_package_handler)
-        self.lc.subscribe(end_connection_keyword, self.end_connection_dealer)
+        self.lc.subscribe(self.keywords.connect_response_keyword, self.connect_response_handler)
+        self.lc.subscribe(self.keywords.action_package_keyword, self.action_package_handler)
+        self.lc.subscribe(self.keywords.end_connection_keyword, self.end_connection_dealer)
         self.message_listener = threading.Thread(target=self.message_listen_process, name='MessageListenThread')
         # 将子线程设置为守护线程，在主线程退出后自动退出
         self.message_listener.setDaemon(True)
@@ -802,14 +798,10 @@ class Game_Loop:
         self.suspend_simulation_dealer = threading.Thread(target=self.suspend_simulation_control_process, name='SuspendSimulationThread')
         self.suspend_simulation_dealer.setDaemon(True)
         self.suspend_simulation_dealer.start()
-        self.sumo_thread = threading.Thread(target=self.sumo_scenario_process, name='SUMOThread')
-        self.sumo_thread.setDaemon(True)
-        self.sumo_thread.start()
+        
 
     
-    def sumo_scenario_process(self):
-        simulator = traci_simulator(self.cfg_path)
-        simulator.main_loop()
+    
 
     # 监听线程需要执行的过程，仅需要监听LCM消息并将消息放入消息队列等待主线程处理即可
     def message_listen_process(self):
@@ -830,11 +822,11 @@ class Game_Loop:
                 suspend.vehicle_id = self.veh_id
                 suspend.current_pos = self.transform_to_lcm_waypoint(self.world.vehicle.get_transform())
                 if self.should_publish is True:
-                    self.lc.publish(suspend_simulation_keyword, suspend.encode())
+                    self.lc.publish(self.keywords.suspend_simulation_keyword, suspend.encode())
             elif local_result_count == 0:
                 pack = reset_simulation()
                 pack.vehicle_id = self.veh_id
-                self.lc.publish(reset_simulation_keyword, pack.encode())
+                self.lc.publish(self.keywords.reset_simulation_keyword, pack.encode())
             else:
                 local_result_count = self.action_result_count
     # from carla transform to lcm waypoint
@@ -864,7 +856,7 @@ class Game_Loop:
             return
         print('receive message on channel ', channel)
         # print('type of this message: ', type(msg))
-        que_element = [action_package_keyword, msg]
+        que_element = [self.keywords.action_package_keyword, msg]
         self.msg_queue.put(que_element)
 
     # concrete dealer function of action package.
@@ -885,7 +877,7 @@ class Game_Loop:
             return
         print('receive message on channel ', channel)
         # print('type of this message: ', type(msg))
-        que_element = [connect_response_keyword, msg]
+        que_element = [self.keywords.connect_response_keyword, msg]
         self.msg_queue.put(que_element)
     
     def connect_response_dealer(self, msg):
@@ -897,7 +889,7 @@ class Game_Loop:
     def end_connection_dealer(self, channel, data):
         msg = end_connection.decode(data)
         print('receive message on channel ', channel)
-        que_element = [end_connection_keyword, msg]
+        que_element = [self.keywords.end_connection_keyword, msg]
         self.msg_queue.put(que_element)
 
     def game_loop(self):
@@ -913,14 +905,14 @@ class Game_Loop:
                 (self.args.width, self.args.height),
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
             connect_request_msg = connect_request()
-            self.lc.publish(connect_request_keyword, connect_request_msg.encode())
+            self.lc.publish(self.keywords.connect_request_keyword, connect_request_msg.encode())
 
             print("connect request message publish done, waiting for connecting response...")
             # 不断监听初始化回应的消息
             while True:
                 try:
                     [keyword, msg] = self.msg_queue.get(timeout=0.01)
-                    if keyword == connect_response_keyword:
+                    if keyword == self.keywords.connect_response_keyword:
                         self.connect_response_dealer(msg)
                         break
                 except queue.Empty:
@@ -949,22 +941,7 @@ class Game_Loop:
                                     spawn_point.location.y,
                                     spawn_point.location.z))
             self.agent.drop_waypoint_buffer()
-            # 在这里发送车辆初始位置给服务器
-            # print("location: ", world.vehicle.get_transform())
 
-            # init_lcm_waypoint = self.transform_to_lcm_waypoint(world.vehicle.get_transform())
-
-            # connect_request_msg.init_pos = init_lcm_waypoint
-
-            # clock = pygame.time.Clock()
-            # print(len(client.get_world().get_map().get_spawn_points()))
-            # pre_loc = [0.0, 0.0, 0.0]
-            # 在这里进行后续的循环接收消息
-
-            '''
-            main loop of the client end.
-            
-            '''
             i_var = 0
             settings = self.world.world.get_settings()
             settings.fixed_delta_seconds = None
@@ -984,7 +961,7 @@ class Game_Loop:
                     [keyword, msg] = self.msg_queue.get(timeout=0.01)
                     # print("keyword of message is ", keyword)
                     # Receive an action package
-                    if keyword == action_package_keyword:
+                    if keyword == self.keywords.action_package_keyword:
                         print("Receive an action package!")
                         self.agent.drop_waypoint_buffer()
                         # 在收到新的路点消息后丢弃当前缓冲中剩余的路点
@@ -997,9 +974,9 @@ class Game_Loop:
                             
                             self.agent.add_waypoint(temp_waypoint)
                         self.waypoints_buffer.clear()
-                    elif keyword == connect_response_keyword:
+                    elif keyword == self.keywords.connect_response_keyword:
                         self.connect_response_dealer(msg)
-                    elif keyword == end_connection_keyword:
+                    elif keyword == self.keywords.end_connection_keyword:
                         if msg.vehicle_id != self.veh_id:
                             print("invalid vehicle id from end connection package")
                         else:
@@ -1036,7 +1013,7 @@ class Game_Loop:
                         current_speed.z
                     ]
 
-                    self.lc.publish(action_result_keyword, action_res_pack.encode())
+                    self.lc.publish(self.keywords.action_result_keyword, action_res_pack.encode())
                     self.action_result_count += 1
                     should_publish_result_msg = False
 
@@ -1052,21 +1029,24 @@ new_route_id_prefix = "manual_route_"
 vehicle_id_prefix = "manual_vehicle_"
 restart_route_id_prefix = "restart_route_"
 
-connect_request_keyword = "connect_request"
-connect_response_keyword = "connect_response"
-action_result_keyword = "action_result"
-action_package_keyword = "action_package"
-end_connection_keyword = "end_connection"
-suspend_simulation_keyword = "suspend_simulation"
-reset_simulation_keyword = "reset_simulation"
+class Vehicle_Client:
+    def __init__(self, veh_id, rou_id):
+        self.vehicle_id = veh_id
+        self.route_id = rou_id
+        self.simulation_steps = 0
+        self.expected_simulation_steps = 0
+        self.waypoint_queue = deque(maxlen=3)
 
 class traci_simulator:
-    def __init__(self, cfg_path):
+    def __init__(self, cfg_path, vehicle_id, keywords):
         sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
         sim_net_path = cfg_path.split('.')[0] + '.net.xml'
         self.config_file_path = cfg_path
+        self.keywords = keywords
         self.sumoBinary = 'sumo'
         self.sumocmd = [self.sumoBinary, "-c", self.config_file_path]
+        self.listen_port = getFreeSocketPort()
+        print("listen port: ", self.listen_port)
         rou_xml_tree = XML_Tree(sim_rou_path)
         net_xml_tree = XML_Tree(sim_net_path)
         self.routes = rou_xml_tree.read_routes()
@@ -1075,15 +1055,16 @@ class traci_simulator:
         # route count from .rou.xml file.
         self.file_route_num = 0
         self.offsets = net_xml_tree.read_offset()
+        self.vehicle_id = vehicle_id
         self.message_waypoints_num = 3
         self.lc = lcm.LCM()
         # 用id-vehicle对来存储所有客户端
         self.vehicle_clients = {}
         # 监听需要接收的消息
-        self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
-        self.lc.subscribe(action_result_keyword, self.action_result_handler)
-        self.lc.subscribe(suspend_simulation_keyword, self.suspend_simualtion_handler)
-        self.lc.subscribe(reset_simulation_keyword, self.reset_simulation_handler)
+        self.lc.subscribe(self.keywords.connect_request_keyword, self.connect_request_handler)
+        self.lc.subscribe(self.keywords.action_result_keyword, self.action_result_handler)
+        self.lc.subscribe(self.keywords.suspend_simulation_keyword, self.suspend_simualtion_handler)
+        self.lc.subscribe(self.keywords.reset_simulation_keyword, self.reset_simulation_handler)
 
     """
     transform from LCM waypoint to TraCi waypoint which will be used here
@@ -1140,63 +1121,46 @@ class traci_simulator:
         edges_list = traci.route.getEdges(rou_id)
         return edges_list[len(edges_list) - 1]
 
-    # generate a new vehicle id 
-    def get_new_vehicle_id(self):
-        if self.vehicle_ids.count == 0:
-            new_id = vehicle_id_prefix + "0"
-            self.vehicle_ids.append(new_id)
-            return new_id
-        else:
-            maxid = -1
-            for id in self.vehicle_ids:
-                id_num = int(id.split('_')[2])
-                if id_num > maxid:
-                    maxid = id_num
-            new_id = vehicle_id_prefix + str(maxid + 1)
-            self.vehicle_ids.append(new_id)
-            return new_id
-
     # function called to create a new vehichle in SUMO Server.
     def new_vehicle_event(self):
-        new_id = self.get_new_vehicle_id()
         rou_cnt = int(traci.route.getIDCount())
         veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
         # # add vehicle过程中可能出现invalid route的Exception，故不断重新选择路线进行尝试直到不抛异常
         while True:
             try:
-                traci.vehicle.add(new_id, veh_rou_id)
+                print("self vehicle id in new vehicle: ", self.vehicle_id)
+                traci.vehicle.add(self.vehicle_id, veh_rou_id)
             except Exception:
                 # 重新选择路线
                 veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
                 continue
             break
-        new_vehicle = Vehicle_Client(new_id, veh_rou_id)
-        self.vehicle_clients[new_id] = new_vehicle
+        new_vehicle = Vehicle_Client(self.vehicle_id, veh_rou_id)
+        self.vehicle_clients[self.vehicle_id] = new_vehicle
         self.simulationStep()
         # 构造connect_response消息并发送
         msg = connect_response()
-        msg.vehicle_id = new_id
-        init_pos_way = self.get_LCM_Waypoint(new_id)
+        msg.vehicle_id = self.vehicle_id
+        init_pos_way = self.get_LCM_Waypoint(self.vehicle_id)
         while init_pos_way.Location[0] > 10000 or init_pos_way.Location[0] < -10000:
             self.simulationStep()
-            init_pos_way = self.get_LCM_Waypoint(new_id)
+            init_pos_way = self.get_LCM_Waypoint(self.vehicle_id)
         init_pos_way.Location[2] += 5
         msg.init_pos = init_pos_way
-        self.lc.publish(connect_response_keyword, msg.encode())
-        return new_id
+        self.lc.publish(self.keywords.connect_response_keyword, msg.encode())
 
     # 有客户端发来连接请求，添加车辆并进行仿真
     def connect_request_handler(self, channel, data):
         msg = connect_request.decode(data)
-        id = self.new_vehicle_event()
+        self.new_vehicle_event()
         next_action = action_package()
         for i in range(self.message_waypoints_num):
             self.simulationStep()
-            next_action.waypoints[i] = self.get_LCM_Waypoint(id)
-        next_action.vehicle_id = id
+            next_action.waypoints[i] = self.get_LCM_Waypoint(self.vehicle_id)
+        next_action.vehicle_id = self.vehicle_id
         # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(id)
         # next_action.target_speed = traci.vehicle.getSpeed(id)
-        self.lc.publish(action_package_keyword, next_action.encode())
+        self.lc.publish(self.keywords.action_package_keyword, next_action.encode())
 
     # 有客户端发来行驶结果，等待所有车辆发来结果或到达最大等待时间后进行下一步仿真
     # 根据车辆id设置相应的车辆的实际状态
@@ -1214,7 +1178,7 @@ class traci_simulator:
             # 之前路线行驶完成 重新规划路线
             end_pack = end_connection()
             end_pack.vehicle_id = msg.vehicle_id
-            self.lc.publish(end_connection_keyword, end_pack.encode())
+            self.lc.publish(self.keywords.end_connection_keyword, end_pack.encode())
             return
         try:
             lane = traci.vehicle.getLaneIndex(msg.vehicle_id)
@@ -1236,7 +1200,7 @@ class traci_simulator:
                 # 之前路线行驶完成 重新规划路线
                 end_pack = end_connection()
                 end_pack.vehicle_id = msg.vehicle_id
-                self.lc.publish(end_connection_keyword, end_pack.encode())
+                self.lc.publish(self.keywords.end_connection_keyword, end_pack.encode())
                 return
         # 服务器端仿真完成，发送后续路点给客户端
         if is_restart:
@@ -1248,13 +1212,12 @@ class traci_simulator:
                 temp_point = self.get_LCM_Waypoint(msg.vehicle_id)
                 next_action.waypoints[i] = temp_point
             next_action_new.vehicle_id = msg.vehicle_id
-            self.lc.publish(action_package_keyword, next_action_new.encode())
+            self.lc.publish(self.keywords.action_package_keyword, next_action_new.encode())
         else:
-
             next_action.vehicle_id = msg.vehicle_id
             # next_action.waypoints[0] = self.transform_SUMO_to_LCM_Waypoint(msg.vehicle_id)
             # next_action.target_speed = traci.vehicle.getSpeed(msg.vehicle_id)
-            self.lc.publish(action_package_keyword, next_action.encode())
+            self.lc.publish(self.keywords.action_package_keyword, next_action.encode())
 
     def suspend_simualtion_handler(self, channel, data):
         print("Received message on channel ", channel)
@@ -1278,7 +1241,7 @@ class traci_simulator:
             traci.simulationStep()
 
     def main_loop(self):
-        traci.start(self.sumocmd)
+        traci.start(self.sumocmd, self.listen_port)
         # no need to add routes from file.
         i = 0
         for route in self.routes:
@@ -1289,18 +1252,56 @@ class traci_simulator:
         while True:
             try:
                 self.lc.handle()
+            except KeyboardInterrupt:
+                sys.exit()
+                return
+
+
+
 
 class agent_based_client:
-
     def __init__(self, args):
         super().__init__()
+        self.args = args
+        self.veh_id = ""
+        self.cfg_path = args.source
+        self.is_init = False
+        self.keywords = Keywords()
         
+        
+    
+    def initial_response_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = connect_request.decode(data)
+        self.veh_id = msg.vehicle_id
+        print("vehicle id from SUMO Server: ", self.veh_id)
+        self.keywords.add_id(self.veh_id)
+        self.is_init = True
+
+    def sumo_scenario_process(self):
+        simulator = traci_simulator(self.cfg_path, self.veh_id, self.keywords)
+        simulator.main_loop()
 
 
 
-
-
-
+    def client_process(self):
+        print("ready to send initial request")
+        initial_lc = lcm.LCM()
+        request = initial_request()
+        initial_lc.publish(self.keywords.initial_request_keyword, request.encode())
+        initial_lc.subscribe(self.keywords.initial_response_keyword, self.initial_response_handler)
+        while self.is_init is False:
+            initial_lc.handle()
+        self.sumo_thread = threading.Thread(target=self.sumo_scenario_process, name='SUMOThread')
+        self.sumo_thread.setDaemon(True)
+        self.sumo_thread.start()
+        main_loop = Game_Loop(self.args, self.veh_id, self.keywords)
+        try:
+            main_loop.game_loop()
+        except KeyboardInterrupt:
+            print('\nCancelled by user. Bye!')
+        except Exception as error:
+            logging.exception(error)
 # ==============================================================================
 # -- main() --------------------------------------------------------------
 # ==============================================================================
@@ -1342,6 +1343,12 @@ def main():
         default='960x540',
         help='window resolution (default: 1280x720)')
 
+    argparser.add_argument(
+        '--source',
+        default='simulations/Town03/Town03.sumocfg',
+        help='source of the sumo config file',
+    )
+
     argparser.add_argument("-a", "--agent", type=str,
                            choices=["Roaming", "Basic"],
                            help="select which agent to run",
@@ -1354,15 +1361,10 @@ def main():
     logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
 
     logging.info('listening to server %s:%s', args.host, args.port)
-    print(__doc__)
-    main_loop = Game_Loop(args)
-    try:
-        main_loop.game_loop()
-
-    except KeyboardInterrupt:
-        print('\nCancelled by user. Bye!')
-    except Exception as error:
-        logging.exception(error)
+    client = agent_based_client(args)
+    client.client_process()
+    
+    
 
 
 if __name__ == '__main__':
