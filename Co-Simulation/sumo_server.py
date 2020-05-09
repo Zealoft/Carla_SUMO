@@ -53,6 +53,19 @@ class SUMO_Server:
 
     
 if __name__ == "__main__":
+    argparser = argparse.ArgumentParser(description=__doc__)
+    argparser.add_argument('--carla-host',
+                           metavar='H',
+                           default='127.0.0.1',
+                           help='IP of the carla host server (default: 127.0.0.1)')
+    argparser.add_argument('--carla-port',
+                           metavar='P',
+                           default=2000,
+                           type=int,
+                           help='TCP port to listen to (default: 2000)')
+
+    arguments = argparser.parse_args()
+
     server = SUMO_Server()
     server.server_main_loop()
 
