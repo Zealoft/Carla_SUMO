@@ -8,7 +8,12 @@ struct Waypoint
 
 struct connect_request
 {
+}
+
+struct carla_id
+{
     string vehicle_id;
+    string carla_id;
 }
 
 struct connect_response

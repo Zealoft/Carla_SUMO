@@ -20,8 +20,8 @@ import carla  # pylint: disable=import-error
 import sumolib  # pylint: disable=import-error
 import traci  # pylint: disable=import-error
 
-from .constants import INVALID_ACTOR_ID
-
+from .constants import *
+from xml_reader import XML_Tree
 # ==================================================================================================
 # -- sumo definitions ------------------------------------------------------------------------------
 # ==================================================================================================
@@ -126,11 +126,27 @@ class SumoSimulation(object):
         self.spawned_actors = set()
         self.destroyed_actors = set()
 
+        self.client_route_num = 0
+
         # Creating a random route to be able to spawn carla actors.
         traci.route.add("carla_route", [traci.edge.getIDList()[0]])
 
+        # Add file routes for clients
+        cfg_path = args.sumo_cfg_file
+        sim_rou_path = cfg_path.split('.')[0] + '.rou.xml'
+        rou_xml_tree = XML_Tree(sim_rou_path)
+        self.routes = rou_xml_tree.read_routes()
+        i = 0
+        for route in self.routes:
+            route_name = file_route_id_prefix + str(i)
+            traci.route.add(route_name, route)
+            i += 1
+            self.client_route_num += 1
+
+
         # Variable to asign an id to new added actors.
         self._sequential_id = 0
+    
 
     @staticmethod
     def subscribe(actor_id):
@@ -208,7 +224,7 @@ class SumoSimulation(object):
 
         return SumoActor(type_id, vclass, transform, signals, extent, color)
 
-    def spawn_actor(self, type_id, agent_based=False, attrs=None):
+    def spawn_actor(self, type_id, attrs=None):
         """
         Spawns a new actor.
 
@@ -231,6 +247,14 @@ class SumoSimulation(object):
 
         self._sequential_id += 1
 
+        return actor_id
+
+    def spawn_client_actor(self, actor_id, route_name):
+        try:
+            traci.vehicle.add(actor_id, route_name)
+        except traci.exceptions.TraCIException as error:
+            logging.error('Spawn sumo actor failed: %s', error)
+            return INVALID_ACTOR_ID
         return actor_id
 
     @staticmethod

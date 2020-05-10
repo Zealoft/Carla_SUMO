@@ -3,6 +3,8 @@ import time
 import socket
 import lcm
 import argparse
+import logging
+import time
 from npc_control import initial_request, initial_response
 
 # ==================================================================================================
@@ -21,6 +23,12 @@ try:
     sys.path.append('C:/Users/autolab/Desktop/0.9.8_compiled/PythonAPI/carla/dist/carla-0.9.8-py3.7-win-amd64.egg')
 except IndexError:
     pass
+
+
+if 'SUMO_HOME' in os.environ:
+    sys.path.append(os.path.join(os.environ['SUMO_HOME'], 'tools'))
+else:
+    sys.exit("please declare environment variable 'SUMO_HOME'")
 
 
 # ==================================================================================================
@@ -52,13 +60,14 @@ class SUMO_Server:
         self.lc = lcm.LCM()
         self.lc.subscribe(initial_request_keyword, self.initial_request_handler)
         self.carla = CarlaSimulation(args)
+        self.sumo = SumoSimulation(args)
 
         # Mapped actor ids.
         self.sumo2carla_ids = {}  # Contains only actors controlled by sumo.
         self.carla2sumo_ids = {}  # Contains only actors controlled by carla.
 
         BridgeHelper.blueprint_library = self.carla.world.get_blueprint_library()
-
+        BridgeHelper.offset = self.sumo.get_net_offset()
 
 
 

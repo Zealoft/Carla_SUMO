@@ -17,6 +17,7 @@ Script to integrate CARLA and SUMO simulations
 import argparse
 import logging
 import time
+import random
 
 # ==================================================================================================
 # -- find carla module -----------------------------------------------------------------------------
@@ -54,6 +55,16 @@ from sumo_integration.constants import INVALID_ACTOR_ID  # pylint: disable=wrong
 from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=wrong-import-position
 
 # ==================================================================================================
+# -- LCM Messages --------------------------------------------------------------------------
+# ==================================================================================================
+
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation
+
+from .constants import *
+import lcm
+
+
+# ==================================================================================================
 # -- synchronization_loop --------------------------------------------------------------------------
 # ==================================================================================================
 
@@ -66,16 +77,64 @@ class SimulationSynchronization(object):
 
     def __init__(self, args):
         self.args = args
+        
+
+        self.lc = lcm.LCM()
 
         self.sumo = SumoSimulation(args)
+
+        
+
         self.carla = CarlaSimulation(args)
 
         # Mapped actor ids.
         self.sumo2carla_ids = {}  # Contains only actors controlled by sumo.
         self.carla2sumo_ids = {}  # Contains only actors controlled by carla.
+        self.client_ids = [] # Contains agent-based clients controlled by sumo. 
+        self.client_num = 0
+        self.new_clients = [] # Contains new clients to be generated in carla.
+
 
         BridgeHelper.blueprint_library = self.carla.world.get_blueprint_library()
         BridgeHelper.offset = self.sumo.get_net_offset()
+
+    def get_new_vehicle_id(self):
+        if self.client_ids.count == 0:
+            new_id = vehicle_id_prefix + "0"
+            self.client_ids.append(new_id)
+            return new_id
+        else:
+            maxid = -1
+            for id in self.client_ids:
+                id_num = int(id.split('_')[2])
+                if id_num > maxid:
+                    maxid = id_num
+            new_id = vehicle_id_prefix + str(maxid + 1)
+            self.client_ids.append(new_id)
+            return new_id
+
+    def new_vehicle_event(self):
+        new_id = self.get_new_vehicle_id()
+        rou_cnt = self.sumo.client_route_num
+        veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
+        if self.sumo.spawn_client_actor(new_id, veh_rou_id) == INVALID_ACTOR_ID:
+            return None
+        self.new_clients.append(new_id)
+
+        return new_id
+        
+        
+
+
+    def connect_request_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = connect_request.decode(data)
+        id = self.new_vehicle_event()
+        
+
+    # listen new client connecting requests
+    def client_listen_process(self):
+        pass
 
     def tick(self):
         """
@@ -87,7 +146,18 @@ class SimulationSynchronization(object):
         self.sumo.tick()
 
         # Spawning new sumo actors in carla (i.e, not controlled by carla).
-        sumo_spawned_actors = self.sumo.spawned_actors - set(self.carla2sumo_ids.values())
+        # 客户端车辆不在此处直接生成，而是通过connect_response发送报文从客户端生成
+        sumo_spawned_actors = self.sumo.spawned_actors - set(self.carla2sumo_ids.values()) - set(self.new_clients)
+        for sumo_actor_id in self.new_clients:
+            self.sumo.subscribe(sumo_actor_id)
+            sumo_actor = self.sumo.get_actor(sumo_actor_id)
+            waypoint = BridgeHelper.transform_SUMO_to_LCM_Waypoint(sumo_actor.transform)
+            connect_res = connect_response()
+            connect_res.init_pos = waypoint
+            connect_res.vehicle_id = sumo_actor_id
+            self.lc.publish(connect_response_keyword, connect_res.encode())
+
+
         for sumo_actor_id in sumo_spawned_actors:
             self.sumo.subscribe(sumo_actor_id)
             sumo_actor = self.sumo.get_actor(sumo_actor_id)

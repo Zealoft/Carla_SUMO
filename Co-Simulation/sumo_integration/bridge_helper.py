@@ -22,6 +22,8 @@ import traci  # pylint: disable=import-error
 
 from .sumo_simulation import SumoVehSignal
 
+from npc_control import Waypoint
+
 # ==================================================================================================
 # -- Bridge helper (SUMO <=> CARLA) ----------------------------------------------------------------
 # ==================================================================================================
@@ -37,6 +39,29 @@ class BridgeHelper(object):
 
     with open('data/vtypes.json') as f:
         _VTYPES = json.load(f)['carla_blueprints']
+
+    @staticmethod
+    def transform_SUMO_to_LCM_Waypoint(in_sumo_transform):
+        lcm_waypoint = Waypoint()
+        lcm_waypoint.Location = [
+            in_sumo_transform.location.x - offset[0],
+            in_sumo_transform.location.y - offset[1],
+            0.0
+        ]
+        lcm_waypoint.Rotation = [0.0, in_sumo_transform.rotation.yaw, 0.0]
+        return lcm_waypoint
+
+    @staticmethod
+    def transform_LCM_to_SUMO_Waypoint(waypoint):
+        transform = carla.Transform(
+            carla.Location(waypoint.Location[0] + offset[0], waypoint.Location[1] + offset[1], waypoint.Location[2]),
+            carla.Rotation(waypoint.Rotation[0], waypoint.Rotation[1], waypoint.Rotation[2])
+        )
+        # res_point = (
+        #     waypoint.Location[0] + offset[0],
+        #     waypoint.Location[1] + offset[1]
+        # )
+        return transform
 
     @staticmethod
     def get_carla_transform(in_sumo_transform, extent):
