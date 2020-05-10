@@ -208,12 +208,13 @@ class SumoSimulation(object):
 
         return SumoActor(type_id, vclass, transform, signals, extent, color)
 
-    def spawn_actor(self, type_id, attrs=None):
+    def spawn_actor(self, type_id, agent_based=False, attrs=None):
         """
         Spawns a new actor.
 
             :param type_id: vtype to be spawned.
             :param attrs: dictionary with additional attributes for this specific actor.
+            :param agent_based: 
             :return: actor id if the actor is successfully spawned. Otherwise, INVALID_ACTOR_ID.
         """
         actor_id = 'carla' + str(self._sequential_id)

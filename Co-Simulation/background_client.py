@@ -1242,6 +1242,10 @@ class traci_simulator:
 
     def main_loop(self):
         traci.start(self.sumocmd, self.listen_port)
+        # Creating a random route to be able to spawn carla actors.
+        traci.route.add("carla_route", [traci.edge.getIDList()[0]])
+
+        
         # no need to add routes from file.
         i = 0
         for route in self.routes:
