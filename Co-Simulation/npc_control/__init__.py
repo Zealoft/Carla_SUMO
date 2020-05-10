@@ -13,3 +13,4 @@ from .suspend_simulation import suspend_simulation
 from .reset_simulation import reset_simulation
 from .initial_request import initial_request
 from .initial_response import initial_response
+from .carla_id import carla_id

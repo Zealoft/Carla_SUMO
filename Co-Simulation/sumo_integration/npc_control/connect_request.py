@@ -10,14 +10,14 @@ except ImportError:
 import struct
 
 class connect_request(object):
-    __slots__ = ["vehicle_id"]
+    __slots__ = []
 
-    __typenames__ = ["string"]
+    __typenames__ = []
 
-    __dimensions__ = [None]
+    __dimensions__ = []
 
     def __init__(self):
-        self.vehicle_id = ""
+        pass
 
     def encode(self):
         buf = BytesIO()
@@ -26,10 +26,7 @@ class connect_request(object):
         return buf.getvalue()
 
     def _encode_one(self, buf):
-        __vehicle_id_encoded = self.vehicle_id.encode('utf-8')
-        buf.write(struct.pack('>I', len(__vehicle_id_encoded)+1))
-        buf.write(__vehicle_id_encoded)
-        buf.write(b"\0")
+        pass
 
     def decode(data):
         if hasattr(data, 'read'):
@@ -43,15 +40,13 @@ class connect_request(object):
 
     def _decode_one(buf):
         self = connect_request()
-        __vehicle_id_len = struct.unpack('>I', buf.read(4))[0]
-        self.vehicle_id = buf.read(__vehicle_id_len)[:-1].decode('utf-8', 'replace')
         return self
     _decode_one = staticmethod(_decode_one)
 
     _hash = None
     def _get_hash_recursive(parents):
         if connect_request in parents: return 0
-        tmphash = (0xd77125401457135d) & 0xffffffffffffffff
+        tmphash = (0x12345678) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)
