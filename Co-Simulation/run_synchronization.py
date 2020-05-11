@@ -58,7 +58,7 @@ from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=w
 # -- LCM Messages --------------------------------------------------------------------------
 # ==================================================================================================
 
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id
 
 from .constants import *
 import lcm
@@ -130,7 +130,18 @@ class SimulationSynchronization(object):
         print("Received message on channel ", channel)
         msg = connect_request.decode(data)
         id = self.new_vehicle_event()
-        
+
+    def carla_id_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = connect_request.decode(data)
+        self.sumo2carla_ids[msg.vehicle_id] = msg.carla_id
+        # 删除可能产生的多余的carla-id对
+        for (key, value) in self.carla2sumo_ids:
+            if value == msg.vehicle_id:
+                del self.carla2sumo_ids[key]
+        # 删除new id
+        self.new_clients.remove(msg.vehicle_id)
+
 
     # listen new client connecting requests
     def client_listen_process(self):

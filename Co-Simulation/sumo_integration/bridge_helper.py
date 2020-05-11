@@ -64,6 +64,14 @@ class BridgeHelper(object):
         return transform
 
     @staticmethod
+    def transform_LCM_to_CARLA_Waypoint(waypoint):
+        transform = carla.Transform(
+            carla.Location(waypoint.Location[0], -1 * waypoint.Location[1], waypoint.Location[2]),
+            carla.Rotation(waypoint.Rotation[0], waypoint.Rotation[1] - 90.0, waypoint.Rotation[2])
+        )
+        return transform
+
+    @staticmethod
     def get_carla_transform(in_sumo_transform, extent):
         """
         Returns carla transform based on sumo transform.
