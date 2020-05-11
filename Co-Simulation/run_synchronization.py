@@ -119,10 +119,11 @@ class SimulationSynchronization(object):
 
     def new_vehicle_event(self):
         new_id = self.get_new_vehicle_id()
+        print("new id for client is ", new_id)
         rou_cnt = self.sumo.client_route_num
         veh_rou_id = file_route_id_prefix + str(random.randint(0, rou_cnt - 1))
-        if self.sumo.spawn_client_actor(new_id, veh_rou_id) == INVALID_ACTOR_ID:
-            return None
+        while self.sumo.spawn_client_actor(new_id, veh_rou_id) == INVALID_ACTOR_ID:
+            pass
         self.new_clients.append(new_id)
 
         return new_id
@@ -133,11 +134,12 @@ class SimulationSynchronization(object):
     def connect_request_handler(self, channel, data):
         print("Received message on channel ", channel)
         msg = connect_request.decode(data)
+        
         id = self.new_vehicle_event()
 
     def carla_id_handler(self, channel, data):
         print("Received message on channel ", channel)
-        msg = connect_request.decode(data)
+        msg = carla_id.decode(data)
         self.sumo2carla_ids[msg.vehicle_id] = msg.carla_id
         # 删除可能产生的多余的carla-id对
         for (key, value) in self.carla2sumo_ids:
@@ -151,6 +153,7 @@ class SimulationSynchronization(object):
     def client_listen_process(self):
         print("Listening LCM Messages...")
         self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
+        self.lc.subscribe(carla_id_keyword, self.carla_id_handler)
         while True:
             self.lc.handle()
 

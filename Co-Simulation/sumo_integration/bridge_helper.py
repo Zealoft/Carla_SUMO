@@ -42,17 +42,19 @@ class BridgeHelper(object):
 
     @staticmethod
     def transform_SUMO_to_LCM_Waypoint(in_sumo_transform):
+        offset = BridgeHelper.offset
         lcm_waypoint = Waypoint()
         lcm_waypoint.Location = [
             in_sumo_transform.location.x - offset[0],
             in_sumo_transform.location.y - offset[1],
-            0.0
+            2.0
         ]
         lcm_waypoint.Rotation = [0.0, in_sumo_transform.rotation.yaw, 0.0]
         return lcm_waypoint
 
     @staticmethod
     def transform_LCM_to_SUMO_Waypoint(waypoint):
+        offset = BridgeHelper.offset
         transform = carla.Transform(
             carla.Location(waypoint.Location[0] + offset[0], waypoint.Location[1] + offset[1], waypoint.Location[2]),
             carla.Rotation(waypoint.Rotation[0], waypoint.Rotation[1], waypoint.Rotation[2])

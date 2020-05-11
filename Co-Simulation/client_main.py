@@ -50,9 +50,9 @@ Use ARROWS or WASD keys for control.
 from __future__ import print_function
 
 from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id
-from .constants import *
+from sumo_integration.constants import connect_response_keyword, connect_request_keyword, carla_id_keyword  # pylint: disable=wrong-import-position
 import lcm
-from sumo_integration.bridge_helper import BridgeHelper  # pylint: disable=wrong-import-position
+
 
 from queue import Queue
 import queue
@@ -72,7 +72,7 @@ try:
     #     sys.version_info.major,
     #     sys.version_info.minor,
     #     'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
-    sys.path.append('C:/Users/autolab/Desktop/0.9.8_compiled/PythonAPI/carla/dist/carla-0.9.8-py3.7-win-amd64.egg')
+    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.8-py3.7-win-amd64.egg')
 except IndexError:
     pass
 
@@ -81,7 +81,7 @@ except IndexError:
 # -- imports -------------------------------------------------------------------
 # ==============================================================================
 
-
+from sumo_integration.bridge_helper import BridgeHelper  # pylint: disable=wrong-import-position
 import carla
 
 from carla import ColorConverter as cc
@@ -1048,7 +1048,7 @@ class Game_Loop:
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
 
             connect_request_msg = connect_request()
-            self.lc.publish(self.keywords.connect_request_keyword, connect_request_msg.encode())
+            self.lc.publish(connect_request_keyword, connect_request_msg.encode())
             print("connect request message publish done, waiting for connecting response...")
             self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
 
@@ -1060,7 +1060,7 @@ class Game_Loop:
 
             hud = HUD(self.args.width, self.args.height)
             self.world = World(client.get_world(), hud, self.args)
-            controller = KeyboardControl(world, self.args.autopilot)
+            controller = KeyboardControl(self.world, self.args.autopilot)
             spawn_point = BridgeHelper.transform_LCM_to_CARLA_Waypoint(self.init_waypoint)
             print("spawn_point: ", spawn_point)
             self.world.player.set_transform(spawn_point)
@@ -1069,6 +1069,7 @@ class Game_Loop:
             response_pack = carla_id()
             response_pack.vehicle_id = self.veh_id
             response_pack.carla_id = self.world.player.id
+            # print("player id: ", self.world.player.id, "type: ", type(self.world.player.id))
             self.lc.publish(carla_id_keyword, response_pack.encode())
 
 
@@ -1076,19 +1077,19 @@ class Game_Loop:
             clock = pygame.time.Clock()
             while True:
                 clock.tick_busy_loop(60)
-                if controller.parse_events(client, world, clock):
+                if controller.parse_events(client, self.world, clock):
                     return
-                world.tick(clock)
-                world.render(display)
+                self.world.tick(clock)
+                self.world.render(display)
                 pygame.display.flip()
 
         finally:
 
-            if (world and world.recording_enabled):
+            if (self.world and self.world.recording_enabled):
                 client.stop_recorder()
 
-            if world is not None:
-                world.destroy()
+            if self.world is not None:
+                self.world.destroy()
 
             pygame.quit()
 
@@ -1153,8 +1154,9 @@ def main():
     print(__doc__)
 
     try:
-
-        game_loop(args)
+        game_loop = Game_Loop(args)
+        game_loop.game_loop()
+        # game_loop(args)
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')

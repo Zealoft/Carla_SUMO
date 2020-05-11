@@ -12,13 +12,13 @@ import struct
 class carla_id(object):
     __slots__ = ["vehicle_id", "carla_id"]
 
-    __typenames__ = ["string", "string"]
+    __typenames__ = ["string", "int32_t"]
 
     __dimensions__ = [None, None]
 
     def __init__(self):
         self.vehicle_id = ""
-        self.carla_id = ""
+        self.carla_id = 0
 
     def encode(self):
         buf = BytesIO()
@@ -31,10 +31,7 @@ class carla_id(object):
         buf.write(struct.pack('>I', len(__vehicle_id_encoded)+1))
         buf.write(__vehicle_id_encoded)
         buf.write(b"\0")
-        __carla_id_encoded = self.carla_id.encode('utf-8')
-        buf.write(struct.pack('>I', len(__carla_id_encoded)+1))
-        buf.write(__carla_id_encoded)
-        buf.write(b"\0")
+        buf.write(struct.pack(">i", self.carla_id))
 
     def decode(data):
         if hasattr(data, 'read'):
@@ -50,15 +47,14 @@ class carla_id(object):
         self = carla_id()
         __vehicle_id_len = struct.unpack('>I', buf.read(4))[0]
         self.vehicle_id = buf.read(__vehicle_id_len)[:-1].decode('utf-8', 'replace')
-        __carla_id_len = struct.unpack('>I', buf.read(4))[0]
-        self.carla_id = buf.read(__carla_id_len)[:-1].decode('utf-8', 'replace')
+        self.carla_id = struct.unpack(">i", buf.read(4))[0]
         return self
     _decode_one = staticmethod(_decode_one)
 
     _hash = None
     def _get_hash_recursive(parents):
         if carla_id in parents: return 0
-        tmphash = (0x81b8f46b679e0ef) & 0xffffffffffffffff
+        tmphash = (0x118948ec3de96312) & 0xffffffffffffffff
         tmphash  = (((tmphash<<1)&0xffffffffffffffff) + (tmphash>>63)) & 0xffffffffffffffff
         return tmphash
     _get_hash_recursive = staticmethod(_get_hash_recursive)
