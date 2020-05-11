@@ -18,6 +18,7 @@ import argparse
 import logging
 import time
 import random
+import threading
 
 # ==================================================================================================
 # -- find carla module -----------------------------------------------------------------------------
@@ -51,7 +52,7 @@ else:
 
 from sumo_integration.bridge_helper import BridgeHelper  # pylint: disable=wrong-import-position
 from sumo_integration.carla_simulation import CarlaSimulation  # pylint: disable=wrong-import-position
-from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword  # pylint: disable=wrong-import-position
+from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword, connect_request_keyword, carla_id_keyword  # pylint: disable=wrong-import-position
 from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=wrong-import-position
 
 # ==================================================================================================
@@ -96,6 +97,10 @@ class SimulationSynchronization(object):
 
         BridgeHelper.blueprint_library = self.carla.world.get_blueprint_library()
         BridgeHelper.offset = self.sumo.get_net_offset()
+
+        self.server_thread = threading.Thread(target=self.client_listen_process, name='ServerThread')
+        self.server_thread.setDaemon(True)
+        self.server_thread.start()
 
     def get_new_vehicle_id(self):
         if self.client_ids.count == 0:
@@ -144,7 +149,10 @@ class SimulationSynchronization(object):
 
     # listen new client connecting requests
     def client_listen_process(self):
-        pass
+        print("Listening LCM Messages...")
+        self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
+        while True:
+            self.lc.handle()
 
     def tick(self):
         """
