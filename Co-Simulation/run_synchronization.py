@@ -51,7 +51,7 @@ else:
 
 from sumo_integration.bridge_helper import BridgeHelper  # pylint: disable=wrong-import-position
 from sumo_integration.carla_simulation import CarlaSimulation  # pylint: disable=wrong-import-position
-from sumo_integration.constants import INVALID_ACTOR_ID  # pylint: disable=wrong-import-position
+from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword  # pylint: disable=wrong-import-position
 from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=wrong-import-position
 
 # ==================================================================================================
@@ -60,7 +60,6 @@ from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=w
 
 from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id
 
-from .constants import *
 import lcm
 
 

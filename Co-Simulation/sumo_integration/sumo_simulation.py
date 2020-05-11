@@ -20,8 +20,8 @@ import carla  # pylint: disable=import-error
 import sumolib  # pylint: disable=import-error
 import traci  # pylint: disable=import-error
 
-from .constants import *
-from xml_reader import XML_Tree
+from .constants import file_route_id_prefix
+from .xml_reader import XML_Tree
 # ==================================================================================================
 # -- sumo definitions ------------------------------------------------------------------------------
 # ==================================================================================================
