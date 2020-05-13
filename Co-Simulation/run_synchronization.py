@@ -93,6 +93,8 @@ class SimulationSynchronization(object):
         self.client_ids = [] # Contains agent-based clients controlled by sumo. 
         self.client_num = 0
         self.new_clients = [] # Contains new clients to be generated in carla.
+        self.client_carla_ids = [] # Contains client carla ids.
+        self.client_sumo_carla_ids = {}
 
 
         BridgeHelper.blueprint_library = self.carla.world.get_blueprint_library()
@@ -125,6 +127,7 @@ class SimulationSynchronization(object):
         while self.sumo.spawn_client_actor(new_id, veh_rou_id) == INVALID_ACTOR_ID:
             pass
         self.new_clients.append(new_id)
+        
 
         return new_id
         
@@ -140,13 +143,16 @@ class SimulationSynchronization(object):
     def carla_id_handler(self, channel, data):
         print("Received message on channel ", channel)
         msg = carla_id.decode(data)
+        # 增加id到sumo控制的车辆中
         self.sumo2carla_ids[msg.vehicle_id] = msg.carla_id
         # 删除可能产生的多余的carla-id对
         for (key, value) in self.carla2sumo_ids:
             if value == msg.vehicle_id:
                 del self.carla2sumo_ids[key]
+                break
         # 删除new id
         self.new_clients.remove(msg.vehicle_id)
+
 
 
     # listen new client connecting requests
@@ -223,7 +229,7 @@ class SimulationSynchronization(object):
         self.carla.tick()
 
         # Spawning new carla actors (not controlled by sumo)
-        carla_spawned_actors = self.carla.spawned_actors - set(self.sumo2carla_ids.values())
+        carla_spawned_actors = self.carla.spawned_actors - set(self.sumo2carla_ids.values()) - set(self.client_carla_ids)
         for carla_actor_id in carla_spawned_actors:
             carla_actor = self.carla.get_actor(carla_actor_id)
 
