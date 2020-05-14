@@ -49,9 +49,10 @@ Use ARROWS or WASD keys for control.
 
 from __future__ import print_function
 
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id
-from sumo_integration.constants import connect_response_keyword, connect_request_keyword, carla_id_keyword  # pylint: disable=wrong-import-position
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id, avoid_request, manual_connect_request, manual_connect_response
+from sumo_integration.constants import connect_response_keyword, connect_request_keyword, carla_id_keyword, end_connection_keyword, avoid_request_keyword, manual_connect_request_keyword, manual_connect_response_keyword  # pylint: disable=wrong-import-position
 import lcm
+from enum import Enum, unique
 
 
 from queue import Queue
@@ -130,6 +131,7 @@ try:
     from pygame.locals import K_i
     from pygame.locals import K_z
     from pygame.locals import K_x
+    from pygame.locals import K_v
     from pygame.locals import K_MINUS
     from pygame.locals import K_EQUALS
 except ImportError:
@@ -139,6 +141,14 @@ try:
     import numpy as np
 except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
+
+
+global_msg_queue = Queue()
+
+class ProgramMessage(Enum):
+    Avoid_Message = 0
+
+
 
 
 # ==============================================================================
@@ -321,6 +331,9 @@ class KeyboardControl(object):
                         world.player.set_autopilot(True)
                     else:
                         world.restart()
+                elif event.key == K_v:
+                    print("key V pressed!")
+                    global_msg_queue.put(ProgramMessage.Avoid_Message)
                 elif event.key == K_F1:
                     world.hud.toggle_info()
                 elif event.key == K_h or (event.key == K_SLASH and pygame.key.get_mods() & KMOD_SHIFT):
@@ -1013,26 +1026,66 @@ class Game_Loop:
         self.agent = None
         self.world = None
         self.is_init = False
+        self.is_manual = args.is_manual
         self.args = args
         self.lc = lcm.LCM()
         self.init_controller()
         self.msg_queue = Queue()
+        self.init_controller()
         
     
     # 进一步对各类成员进行初始化工作
     def init_controller(self):
-        pass
+        # self.lc.subscribe(end_connection_keyword, self.end_connection_handler)
+        self.key_listener = threading.Thread(target=self.key_listen_process, name='KeyListener')
+        self.key_listener.setDaemon(True)
+        self.key_listener.start()
+
+    def manual_connect_response_handler(self, channel, data):
+        print('receive message on channel ', channel)
+        msg = manual_connect_response.decode(data)
+        if self.is_init or self.is_manual is False:
+            return
+        self.veh_id = msg.vehicle_id
+        print("self vehicle id: ", self.veh_id)
+        self.is_init = True
 
     def connect_response_handler(self, channel, data):
-        msg = connect_response.decode(data)
-        if self.is_init:
-            return
+        
         print('receive message on channel ', channel)
+        msg = connect_response.decode(data)
+        if self.is_init or self.is_manual:
+            return
         self.veh_id = msg.vehicle_id
         self.init_waypoint = msg.init_pos
         self.is_init = True
+    
+    def end_connection_handler(self, channel, data):
+        print('receive message on channel ', channel)
+        msg = end_connection.decode(data)
 
+    def avoid_request_event(self):
+        print("Publishing Avoid Message!")
+        msg = avoid_request()
+        msg.vehicle_id = self.veh_id
+        self.lc.publish(avoid_request_keyword, msg.encode())
 
+    def key_listen_process(self):
+        while True:
+            if self.is_init is True:
+                try:
+                    key_message = global_msg_queue.get(timeout=0.01)
+                    if key_message == ProgramMessage.Avoid_Message:
+                        self.avoid_request_event()
+                except queue.Empty:
+                    pass
+
+    def response_listen_process(self):
+        
+        self.lc.subscribe(manual_connect_response_keyword, self.manual_connect_response_handler)
+        while self.is_init is False:
+            self.lc.handle()
+            
 
     def game_loop(self):
         pygame.init()
@@ -1047,13 +1100,17 @@ class Game_Loop:
                 (self.args.width, self.args.height),
                 pygame.HWSURFACE | pygame.DOUBLEBUF)
 
-            connect_request_msg = connect_request()
-            self.lc.publish(connect_request_keyword, connect_request_msg.encode())
-            print("connect request message publish done, waiting for connecting response...")
-            self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
+            if self.is_manual is False:
+                connect_request_msg = connect_request()
+                # connect_request_msg.self_controlled = False
+                # connect_request_msg.is_special = self.is_special
+                
+                self.lc.publish(connect_request_keyword, connect_request_msg.encode())
+                print("connect request message publish done, waiting for connecting response...")
+                self.lc.subscribe(connect_response_keyword, self.connect_response_handler)
 
-            while self.is_init is False:
-                self.lc.handle()
+                while self.is_init is False:
+                    self.lc.handle()
 
             
             
@@ -1061,16 +1118,31 @@ class Game_Loop:
             hud = HUD(self.args.width, self.args.height)
             self.world = World(client.get_world(), hud, self.args)
             controller = KeyboardControl(self.world, self.args.autopilot)
-            spawn_point = BridgeHelper.transform_LCM_to_CARLA_Waypoint(self.init_waypoint)
-            print("spawn_point: ", spawn_point)
-            self.world.player.set_transform(spawn_point)
-
-            # 发送carla_id报文
-            response_pack = carla_id()
-            response_pack.vehicle_id = self.veh_id
-            response_pack.carla_id = self.world.player.id
-            # print("player id: ", self.world.player.id, "type: ", type(self.world.player.id))
-            self.lc.publish(carla_id_keyword, response_pack.encode())
+            if self.is_manual is False:
+                spawn_point = BridgeHelper.transform_LCM_to_CARLA_Waypoint(self.init_waypoint)
+                print("spawn_point: ", spawn_point)
+                self.world.player.set_transform(spawn_point)
+                # 发送carla_id报文
+                response_pack = carla_id()
+                response_pack.vehicle_id = self.veh_id
+                response_pack.carla_id = self.world.player.id
+                # print("player id: ", self.world.player.id, "type: ", type(self.world.player.id))
+                self.lc.publish(carla_id_keyword, response_pack.encode())
+            else:
+                # 开启监听回复的线程
+                response_listener = threading.Thread(target=self.response_listen_process, name='ResponseListener')
+                response_listener.setDaemon(True)
+                response_listener.start()
+                # 车辆为手动控制模式，发送当前位置作为初始报文信息
+                transform = self.world.player.get_transform()
+                extent = self.world.player.bounding_box.extent
+                # print("extent: ", extent)
+                sumo_transform = BridgeHelper.get_sumo_transform(transform, extent)
+                waypoint = BridgeHelper.transform_CARLA_to_LCM_Waypoint(sumo_transform)
+                init_pack = manual_connect_request()
+                init_pack.init_pos = waypoint
+                self.lc.publish(manual_connect_request_keyword, init_pack.encode())
+                
 
 
 
@@ -1090,6 +1162,12 @@ class Game_Loop:
 
             if self.world is not None:
                 self.world.destroy()
+            if self.is_manual is False:
+                print("Client quiting, publishing end connection package.")
+                end_pack = end_connection()
+                end_pack.vehicle_id = self.veh_id
+                self.lc.publish(end_connection_keyword, end_pack.encode())
+
 
             pygame.quit()
 
@@ -1142,6 +1220,11 @@ def main():
         default=2.2,
         type=float,
         help='Gamma correction of the camera (default: 2.2)')
+    argparser.add_argument(
+        '--is-manual',
+        default=False,
+        type=bool,
+        help='Whether it is a manual vehicle (default: False)')
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]

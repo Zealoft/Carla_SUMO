@@ -46,20 +46,22 @@ if 'SUMO_HOME' in os.environ:
 else:
     sys.exit("please declare environment variable 'SUMO_HOME'")
 
+import traci
+
 # ==================================================================================================
 # -- sumo integration importants -------------------------------------------------------------------
 # ==================================================================================================
 
 from sumo_integration.bridge_helper import BridgeHelper  # pylint: disable=wrong-import-position
 from sumo_integration.carla_simulation import CarlaSimulation  # pylint: disable=wrong-import-position
-from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword, connect_request_keyword, carla_id_keyword  # pylint: disable=wrong-import-position
+from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword, connect_request_keyword, carla_id_keyword, end_connection_keyword, avoid_request_keyword, manual_connect_request_keyword, manual_connect_response_keyword  # pylint: disable=wrong-import-position
 from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=wrong-import-position
 
 # ==================================================================================================
 # -- LCM Messages --------------------------------------------------------------------------
 # ==================================================================================================
 
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id, avoid_request, manual_connect_request, manual_connect_response
 
 import lcm
 
@@ -96,6 +98,10 @@ class SimulationSynchronization(object):
         self.client_carla_ids = [] # Contains client carla ids.
         self.client_sumo_carla_ids = {}
 
+        self.manual_client_ids = [] # Contains manual controlled client ids
+
+        self.sumo_id_lock = threading.Lock()
+
 
         BridgeHelper.blueprint_library = self.carla.world.get_blueprint_library()
         BridgeHelper.offset = self.sumo.get_net_offset()
@@ -130,28 +136,85 @@ class SimulationSynchronization(object):
         
 
         return new_id
+
         
-        
+    def manual_connect_request_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = manual_connect_request.decode(data)
+        transform = BridgeHelper.transform_LCM_to_SUMO_Waypoint(msg.init_pos)
+        min_dist = -1
+        min_id = None
+        for id in self.carla2sumo_ids.values():
+            print("sumo id: ", id)
+            try:
+                sumo_transform = BridgeHelper.transform_LCM_to_SUMO_Waypoint(msg.init_pos)
+                (x1, y1) = (sumo_transform.location.x, sumo_transform.location.y)
+                (x2, y2) = self.sumo.getPosition(id)
+                print(x1, y1, x2, y2)
+                dist = BridgeHelper.calc_point_square_distance(x1, y1, x2, y2)
+                print("dist: ", dist)
+                if min_dist == -1 or min_dist > dist:
+                    min_dist = dist
+                    min_id = id
+            except Exception:
+                print("error.")
+            # print("dist: ", dist)
+        print("final id for manual client: ", min_id)
+        self.manual_client_ids.append(min_id)
+        response = manual_connect_response()
+        response.vehicle_id = min_id
+        self.lc.publish(manual_connect_response_keyword, response.encode())
+
+
 
 
     def connect_request_handler(self, channel, data):
         print("Received message on channel ", channel)
         msg = connect_request.decode(data)
-        
         id = self.new_vehicle_event()
+        # if msg.self_controlled == False:
+        #     id = self.new_vehicle_event()
+        # else:
+        #     pass
+
+    def end_connection_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = end_connection.decode(data)
+        veh_id = msg.vehicle_id
+        try:
+            self.sumo.destroy_actor(veh_id)
+            self.sumo_id_lock.acquire()
+            del self.sumo2carla_ids[veh_id]
+            self.sumo_id_lock.release()
+        except traci.exceptions.TraCIException:
+            print("traci exception caught.")
+        print("actor destroy done.")
+        
+
 
     def carla_id_handler(self, channel, data):
         print("Received message on channel ", channel)
         msg = carla_id.decode(data)
-        # 增加id到sumo控制的车辆中
+        # 增加id到sumo控制的车辆中,需要加锁避免读脏数据
+        self.sumo_id_lock.acquire()
         self.sumo2carla_ids[msg.vehicle_id] = msg.carla_id
+        self.sumo_id_lock.release()
+        print("carla id: ", msg.carla_id)
         # 删除可能产生的多余的carla-id对
-        for (key, value) in self.carla2sumo_ids:
-            if value == msg.vehicle_id:
-                del self.carla2sumo_ids[key]
-                break
+        # for (key, value) in self.carla2sumo_ids:
+        #     if value == msg.vehicle_id:
+        #         del self.carla2sumo_ids[key]
+        #         break
         # 删除new id
         self.new_clients.remove(msg.vehicle_id)
+        # self.sumo.destroy_actor(str(msg.carla_id))
+
+    def avoid_request_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = avoid_request.decode(data)
+        actor_id = msg.vehicle_id
+        neighbors = self.sumo.getNeighbors(actor_id, mode=10)
+        print("neighbors: ", neighbors)
 
 
 
@@ -160,6 +223,9 @@ class SimulationSynchronization(object):
         print("Listening LCM Messages...")
         self.lc.subscribe(connect_request_keyword, self.connect_request_handler)
         self.lc.subscribe(carla_id_keyword, self.carla_id_handler)
+        self.lc.subscribe(end_connection_keyword, self.end_connection_handler)
+        self.lc.subscribe(avoid_request_keyword, self.avoid_request_handler)
+        self.lc.subscribe(manual_connect_request_keyword, self.manual_connect_request_handler)
         while True:
             self.lc.handle()
 
@@ -197,7 +263,9 @@ class SimulationSynchronization(object):
 
                 carla_actor_id = self.carla.spawn_actor(carla_blueprint, carla_transform)
                 if carla_actor_id != INVALID_ACTOR_ID:
+                    self.sumo_id_lock.acquire()
                     self.sumo2carla_ids[sumo_actor_id] = carla_actor_id
+                    self.sumo_id_lock.release()
             else:
                 self.sumo.unsubscribe(sumo_actor_id)
 
@@ -207,8 +275,11 @@ class SimulationSynchronization(object):
                 self.carla.destroy_actor(self.sumo2carla_ids.pop(sumo_actor_id))
 
         # Updating sumo actors in carla.
+        self.sumo_id_lock.acquire()
         for sumo_actor_id in self.sumo2carla_ids:
+            
             carla_actor_id = self.sumo2carla_ids[sumo_actor_id]
+            
 
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
             carla_actor = self.carla.get_actor(carla_actor_id)
@@ -222,14 +293,17 @@ class SimulationSynchronization(object):
                 carla_lights = None
 
             self.carla.synchronize_vehicle(carla_actor_id, carla_transform, carla_lights)
-
+        self.sumo_id_lock.release()
         # -----------------
         # carla-->sumo sync
         # -----------------
         self.carla.tick()
 
         # Spawning new carla actors (not controlled by sumo)
-        carla_spawned_actors = self.carla.spawned_actors - set(self.sumo2carla_ids.values()) - set(self.client_carla_ids)
+        self.sumo_id_lock.acquire()
+        sumo2carla_ids = self.sumo2carla_ids
+        self.sumo_id_lock.release()
+        carla_spawned_actors = self.carla.spawned_actors - set(sumo2carla_ids.values()) - set(self.client_carla_ids)
         for carla_actor_id in carla_spawned_actors:
             carla_actor = self.carla.get_actor(carla_actor_id)
 

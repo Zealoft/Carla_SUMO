@@ -14,3 +14,6 @@ from .reset_simulation import reset_simulation
 from .initial_request import initial_request
 from .initial_response import initial_response
 from .carla_id import carla_id
+from .avoid_request import avoid_request
+from .manual_connect_request import manual_connect_request
+from .manual_connect_response import manual_connect_response

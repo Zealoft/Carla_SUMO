@@ -112,7 +112,7 @@ class SumoSimulation(object):
                 "-c", args.sumo_cfg_file,
                 '--step-length', str(args.step_length),
                 '--lateral-resolution', '0.25',
-                '--scale', '1.0',
+                '--scale', '10.0',
                 '--collision.check-junctions'
             ])
 
@@ -146,6 +146,14 @@ class SumoSimulation(object):
 
         # Variable to asign an id to new added actors.
         self._sequential_id = 0
+
+    @staticmethod
+    def getNeighbors(actor_id, mode):
+        return traci.vehicle.getNeighbors(actor_id, mode)
+
+    @staticmethod
+    def getPosition(actor_id):
+        return traci.vehicle.getPosition(actor_id)
     
 
     @staticmethod

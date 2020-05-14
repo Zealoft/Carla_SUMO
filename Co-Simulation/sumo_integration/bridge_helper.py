@@ -41,6 +41,10 @@ class BridgeHelper(object):
         _VTYPES = json.load(f)['carla_blueprints']
 
     @staticmethod
+    def calc_point_square_distance(x1, y1, x2, y2):
+        return float((x1 - x2) ** 2 + (y1 - y2) ** 2)
+    
+    @staticmethod
     def transform_SUMO_to_LCM_Waypoint(in_sumo_transform):
         offset = BridgeHelper.offset
         lcm_waypoint = Waypoint()
@@ -72,6 +76,23 @@ class BridgeHelper(object):
             carla.Rotation(waypoint.Rotation[0], waypoint.Rotation[1] - 90.0, waypoint.Rotation[2])
         )
         return transform
+
+    @staticmethod
+    def transform_CARLA_to_LCM_Waypoint(carla_transform):
+        in_location = carla_transform.location
+        in_rotation = carla_transform.rotation
+        lcm_waypoint = Waypoint()
+        lcm_waypoint.Location = [
+            in_location.x,
+            in_location.y,
+            in_location.z
+        ]
+        lcm_waypoint.Rotation = [
+            in_rotation.pitch,
+            in_rotation.yaw,
+            in_rotation.roll
+        ]
+        return lcm_waypoint
 
     @staticmethod
     def get_carla_transform(in_sumo_transform, extent):
