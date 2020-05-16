@@ -112,7 +112,7 @@ class SumoSimulation(object):
                 "-c", args.sumo_cfg_file,
                 '--step-length', str(args.step_length),
                 '--lateral-resolution', '0.25',
-                '--scale', '10.0',
+                '--scale', '2.0',
                 '--collision.check-junctions'
             ])
 
@@ -152,8 +152,17 @@ class SumoSimulation(object):
         return traci.vehicle.getNeighbors(actor_id, mode)
 
     @staticmethod
+    def getLeader(actor_id, dist=0.0):
+        return traci.vehicle.getLeader(actor_id, dist)
+
+    @staticmethod
     def getPosition(actor_id):
         return traci.vehicle.getPosition(actor_id)
+
+
+    @staticmethod
+    def changeLaneRelative(actor_id, offset, duration):
+        traci.vehicle.changeLaneRelative(actor_id, offset, duration)
     
 
     @staticmethod

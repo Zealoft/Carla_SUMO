@@ -213,10 +213,41 @@ class SimulationSynchronization(object):
         print("Received message on channel ", channel)
         msg = avoid_request.decode(data)
         actor_id = msg.vehicle_id
-        neighbors = self.sumo.getNeighbors(actor_id, mode=10)
-        print("neighbors: ", neighbors)
+        self.avoid_event(actor_id)
+        # neighbors = self.sumo.getNeighbors(actor_id, mode=10)
+        # print("neighbors: ", neighbors)
+        # leader = self.sumo.getLeader(actor_id, dist=0.0)
+        # print("leader: ", leader)
 
-
+    def avoid_event(self, start_actor_id):
+        # pass
+        try:
+            leader = self.sumo.getLeader(start_actor_id)[0]
+        except Exception:
+            print("get leader error.")
+            return
+        except traci.exceptions.TraCIException:
+            print("get leader error.")
+            return
+        i = 0
+        while leader is not None and i < 3:
+            try:
+                print("leader: ", leader)
+                
+                if traci.vehicle.couldChangeLane(leader, -1):
+                    print("could change to right")
+                    traci.vehicle.changeLaneRelative(leader, -1, 60.0)
+                elif traci.vehicle.couldChangeLane(leader, 1):
+                    print("could change to left")
+                    traci.vehicle.changeLaneRelative(leader, 1, 60.0)
+                i += 1
+                leader = self.sumo.getLeader(leader)[0]
+            except traci.exceptions.TraCIException:
+                print("traci exception caught.")
+                break
+            except TypeError:
+                print("type error.")
+                break
 
     # listen new client connecting requests
     def client_listen_process(self):
