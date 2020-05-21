@@ -17,3 +17,4 @@ from .carla_id import carla_id
 from .avoid_request import avoid_request
 from .manual_connect_request import manual_connect_request
 from .manual_connect_response import manual_connect_response
+from .emergency_stop_request import emergency_stop_request

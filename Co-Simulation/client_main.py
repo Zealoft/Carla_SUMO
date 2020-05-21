@@ -49,8 +49,8 @@ Use ARROWS or WASD keys for control.
 
 from __future__ import print_function
 
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id, avoid_request, manual_connect_request, manual_connect_response
-from sumo_integration.constants import connect_response_keyword, connect_request_keyword, carla_id_keyword, end_connection_keyword, avoid_request_keyword, manual_connect_request_keyword, manual_connect_response_keyword  # pylint: disable=wrong-import-position
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id, avoid_request, manual_connect_request, manual_connect_response, emergency_stop_request
+from sumo_integration.constants import connect_response_keyword, connect_request_keyword, carla_id_keyword, end_connection_keyword, avoid_request_keyword, manual_connect_request_keyword, manual_connect_response_keyword, emergency_stop_request_keyword  # pylint: disable=wrong-import-position
 import lcm
 from enum import Enum, unique
 

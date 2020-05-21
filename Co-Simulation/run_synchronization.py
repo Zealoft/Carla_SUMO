@@ -54,14 +54,14 @@ import traci
 
 from sumo_integration.bridge_helper import BridgeHelper  # pylint: disable=wrong-import-position
 from sumo_integration.carla_simulation import CarlaSimulation  # pylint: disable=wrong-import-position
-from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword, connect_request_keyword, carla_id_keyword, end_connection_keyword, avoid_request_keyword, manual_connect_request_keyword, manual_connect_response_keyword  # pylint: disable=wrong-import-position
+from sumo_integration.constants import INVALID_ACTOR_ID, vehicle_id_prefix, file_route_id_prefix, connect_response_keyword, connect_request_keyword, carla_id_keyword, end_connection_keyword, avoid_request_keyword, manual_connect_request_keyword, manual_connect_response_keyword, emergency_stop_request_keyword  # pylint: disable=wrong-import-position
 from sumo_integration.sumo_simulation import SumoSimulation  # pylint: disable=wrong-import-position
 
 # ==================================================================================================
 # -- LCM Messages --------------------------------------------------------------------------
 # ==================================================================================================
 
-from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id, avoid_request, manual_connect_request, manual_connect_response
+from npc_control import Waypoint, action_result, connect_request, connect_response, action_package, end_connection, suspend_simulation, reset_simulation, carla_id, avoid_request, manual_connect_request, manual_connect_response, emergency_stop_request
 
 import lcm
 
@@ -218,6 +218,12 @@ class SimulationSynchronization(object):
         # print("neighbors: ", neighbors)
         # leader = self.sumo.getLeader(actor_id, dist=0.0)
         # print("leader: ", leader)
+
+    def emergency_stop_request_handler(self, channel, data):
+        print("Received message on channel ", channel)
+        msg = emergency_stop_request.decode(data)
+        actor_id = msg.vehicle_id
+        
 
     def avoid_event(self, start_actor_id):
         # pass

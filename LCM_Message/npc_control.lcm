@@ -37,6 +37,11 @@ struct avoid_request
     string vehicle_id;
 }
 
+struct emergency_stop_request
+{
+    string vehicle_id;
+}
+
 struct action_package
 {
     string vehicle_id;
