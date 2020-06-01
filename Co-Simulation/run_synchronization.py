@@ -65,6 +65,9 @@ from npc_control import Waypoint, action_result, connect_request, connect_respon
 
 import lcm
 
+from queue import Queue
+import queue
+
 
 # ==================================================================================================
 # -- synchronization_loop --------------------------------------------------------------------------
@@ -101,6 +104,8 @@ class SimulationSynchronization(object):
         self.manual_client_ids = [] # Contains manual controlled client ids
 
         self.sumo_id_lock = threading.Lock()
+
+        self.del_id = Queue()
 
 
         BridgeHelper.blueprint_library = self.carla.world.get_blueprint_library()
@@ -182,9 +187,9 @@ class SimulationSynchronization(object):
         msg = end_connection.decode(data)
         veh_id = msg.vehicle_id
         try:
-            self.sumo.destroy_actor(veh_id)
+            # self.sumo.destroy_actor(veh_id)
             self.sumo_id_lock.acquire()
-            del self.sumo2carla_ids[veh_id]
+            # del self.sumo2carla_ids[veh_id]
             self.sumo_id_lock.release()
         except traci.exceptions.TraCIException:
             print("traci exception caught.")
@@ -199,11 +204,22 @@ class SimulationSynchronization(object):
         self.sumo_id_lock.acquire()
         self.sumo2carla_ids[msg.vehicle_id] = msg.carla_id
         self.sumo_id_lock.release()
+        print("sumo vehicle id: ", msg.vehicle_id)
         print("carla id: ", msg.carla_id)
         # 删除可能产生的多余的carla-id对
+        print("carla2sumo: ", self.carla2sumo_ids[msg.carla_id])
+        self.del_id.put(self.carla2sumo_ids[msg.carla_id])
+        # try:
+        #     self.sumo.unsubscribe(self.carla2sumo_ids[msg.carla_id])
+        #     self.sumo.destroy_actor(self.carla2sumo_ids[msg.carla_id])
+        # except traci.exceptions.TraCIException:
+        #     print("traci exception caught.")
+        # except Exception:
+        #     print("caught exception")
         # for (key, value) in self.carla2sumo_ids:
         #     if value == msg.vehicle_id:
-        #         del self.carla2sumo_ids[key]
+        #         print("vehicle id generated is ", self.carla2sumo_ids[key])
+        #         # del self.carla2sumo_ids[key]
         #         break
         # 删除new id
         self.new_clients.remove(msg.vehicle_id)
@@ -223,7 +239,13 @@ class SimulationSynchronization(object):
         print("Received message on channel ", channel)
         msg = emergency_stop_request.decode(data)
         actor_id = msg.vehicle_id
-        
+        try:
+            traci.vehicle.slowDown(actor_id, 0.0, 120.0)
+        except traci.exceptions.TraCIException:
+            print("traci exception caught.")
+        except TypeError:
+            print("type error.")
+
 
     def avoid_event(self, start_actor_id):
         # pass
@@ -263,6 +285,7 @@ class SimulationSynchronization(object):
         self.lc.subscribe(end_connection_keyword, self.end_connection_handler)
         self.lc.subscribe(avoid_request_keyword, self.avoid_request_handler)
         self.lc.subscribe(manual_connect_request_keyword, self.manual_connect_request_handler)
+        self.lc.subscribe(emergency_stop_request_keyword, self.emergency_stop_request_handler)
         while True:
             self.lc.handle()
 
@@ -273,6 +296,18 @@ class SimulationSynchronization(object):
         # -----------------
         # sumo-->carla sync
         # -----------------
+        try:
+            del_id = self.del_id.get(timeout=0.001)
+            print("del id is ", del_id)
+            # self.sumo_id_lock.acquire()
+            # del_carla_id = self.sumo2carla_ids[del_id]
+            # self.sumo_id_lock.release()
+            # print("del carla id is ", del_carla_id)
+
+            # self.sumo.unsubscribe(del_id)
+            # self.sumo.destroy_actor(del_id)
+        except queue.Empty:
+            pass
         self.sumo.tick()
 
         # Spawning new sumo actors in carla (i.e, not controlled by carla).

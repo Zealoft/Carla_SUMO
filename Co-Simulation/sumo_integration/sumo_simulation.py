@@ -112,7 +112,7 @@ class SumoSimulation(object):
                 "-c", args.sumo_cfg_file,
                 '--step-length', str(args.step_length),
                 '--lateral-resolution', '0.25',
-                '--scale', '10.0',
+                '--scale', '2.0',
                 '--collision.check-junctions'
             ])
 

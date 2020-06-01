@@ -132,6 +132,7 @@ try:
     from pygame.locals import K_z
     from pygame.locals import K_x
     from pygame.locals import K_v
+    from pygame.locals import K_b
     from pygame.locals import K_MINUS
     from pygame.locals import K_EQUALS
 except ImportError:
@@ -147,6 +148,7 @@ global_msg_queue = Queue()
 
 class ProgramMessage(Enum):
     Avoid_Message = 0
+    Emergency_Stop_Message = 1
 
 
 
@@ -334,6 +336,8 @@ class KeyboardControl(object):
                 elif event.key == K_v:
                     print("key V pressed!")
                     global_msg_queue.put(ProgramMessage.Avoid_Message)
+                elif event.key == K_b:
+                    global_msg_queue.put(ProgramMessage.Emergency_Stop_Message)
                 elif event.key == K_F1:
                     world.hud.toggle_info()
                 elif event.key == K_h or (event.key == K_SLASH and pygame.key.get_mods() & KMOD_SHIFT):
@@ -1070,6 +1074,12 @@ class Game_Loop:
         msg.vehicle_id = self.veh_id
         self.lc.publish(avoid_request_keyword, msg.encode())
 
+    def emergency_stop_event(self):
+        print("Publishing Emergency Stop Message.")
+        msg = emergency_stop_request()
+        msg.vehicle_id = self.veh_id
+        self.lc.publish(emergency_stop_request_keyword, msg.encode())
+
     def key_listen_process(self):
         while True:
             if self.is_init is True:
@@ -1077,6 +1087,9 @@ class Game_Loop:
                     key_message = global_msg_queue.get(timeout=0.01)
                     if key_message == ProgramMessage.Avoid_Message:
                         self.avoid_request_event()
+                    elif key_message == ProgramMessage.Emergency_Stop_Message:
+                        if not self.is_manual:
+                            self.emergency_stop_event()
                 except queue.Empty:
                     pass
 
@@ -1203,7 +1216,7 @@ def main():
     argparser.add_argument(
         '--res',
         metavar='WIDTHxHEIGHT',
-        default='1280x720',
+        default='800x600',
         help='window resolution (default: 1280x720)')
     argparser.add_argument(
         '--filter',
