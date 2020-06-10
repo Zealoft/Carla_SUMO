@@ -26,6 +26,8 @@ class RoadOption(Enum):
     RIGHT = 2
     STRAIGHT = 3
     LANEFOLLOW = 4
+    CHANGELANELEFT = 5
+    CHANGELANERIGHT = 6
 
 
 class LocalPlanner(object):
@@ -83,7 +85,8 @@ class LocalPlanner(object):
         self.init_controller(opt_dict)
 
     def __del__(self):
-        self._vehicle.destroy()
+        if self._vehicle:
+            self._vehicle.destroy()
         print("Destroying ego-vehicle!")
 
     def init_controller(self, opt_dict):
@@ -276,7 +279,6 @@ class LocalPlanner(object):
                 if self._waypoints_queue:
                     # print("queue length: ", len(self._waypoints_queue))
                     left_point, left_road = self._waypoints_queue.popleft()
-                    # print("left point is ", left_point)
                     self._waypoint_buffer.append((left_point, left_road))
                     # right_point, _ = self._waypoint_buffer.popleft()
                     # print("right point is ", right_point)   

@@ -10,9 +10,35 @@ struct connect_request
 {
 }
 
+struct manual_connect_request
+{
+    Waypoint init_pos;
+}
+
+struct manual_connect_response
+{
+    string vehicle_id;
+}
+
+struct carla_id
+{
+    string vehicle_id;
+    int32_t carla_id;
+}
+
 struct connect_response
 {
     Waypoint init_pos;
+    string vehicle_id;
+}
+
+struct avoid_request
+{
+    string vehicle_id;
+}
+
+struct emergency_stop_request
+{
     string vehicle_id;
 }
 
@@ -35,13 +61,12 @@ struct end_connection
     string vehicle_id;
 }
 
-struct suspend_simulation
+struct initial_request
 {
-    string vehicle_id;
-    Waypoint current_pos;
+
 }
 
-struct reset_simulation
+struct initial_response
 {
     string vehicle_id;
 }

@@ -17,6 +17,7 @@ SUMOServer/zcm
 /0.9.6_New/Engine
 /0.9.6_New/HDMaps
 /RoadRunnerFiles/*/
+*.egg
 *.swp
 *.VC.db
 *.VC.opendb
@@ -56,5 +57,3 @@ _site
 core
 profiler.csv
 *.tar.gz
-SUMOServer/simulations/Town03/Town03-output-tripinfos.xml
-SUMOServer/simulations/Town03/Town03-output-vehroutes.xml
