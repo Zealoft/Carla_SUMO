@@ -35,7 +35,7 @@ $ python Co-Simulation/background_client.py
 
 ### 3.2 效果展示
 
-![间接控制程序展示](https://cdn.jsdelivr.net/gh/Zealoft/Zealoft_CDN@1.0.2/images/TiEV/Direct_Injection.gif)
+![](https://cdn.jsdelivr.net/gh/Zealoft/Zealoft_CDN@1.0.2/images/TiEV/Direct_Injection.gif)
 
 ### 3.3 使用说明
 
@@ -60,7 +60,7 @@ $ ./Co-Simulation/injection.bat
 
 ​	此处展示的是嵌入混合控制框架的手动控制车辆控制前方背景车流避让的情形。
 
-![间接控制程序展示](https://cdn.jsdelivr.net/gh/Zealoft/Zealoft_CDN@1.0.2/images/TiEV/Mixed_Injection.gif)
+![](https://cdn.jsdelivr.net/gh/Zealoft/Zealoft_CDN@1.0.2/images/TiEV/Mixed_Injection.gif)
 
 ### 4.3 使用说明
 
