@@ -62,6 +62,9 @@ $ ./Co-Simulation/injection.bat
 
 ![](images/TiEV/Mixed_Injection.gif)
 
+   目前，混合控制方法中受交通流服务器直接控制的背景车客户端还存在不稳定的问题，并且由于这类车辆还会被交通流服务器视为受CARLA控制的车辆，因此会在车辆的同一位置自动生成重复车辆，如下图所示。
+   
+
 ### 4.3 使用说明
 
 ``` shell
@@ -73,6 +76,6 @@ $ ./Co-Simulation/injection.bat
 $ python Co-Simulation/client_main.py
 # 运行嵌入交互框架的手动控制客户端
 $ python Co-Simulation/client_main.py --is-manual=True
-
+# 手动控制的客户端按V键请求前方车辆避让
 ```
 

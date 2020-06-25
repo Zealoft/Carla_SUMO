@@ -73,7 +73,7 @@ try:
     #     sys.version_info.major,
     #     sys.version_info.minor,
     #     'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
-    sys.path.append('D:/zwh/Carla_SUMO/CarlaClient/PythonAPI/carla-0.9.8-py3.7-win-amd64.egg')
+    sys.path.append('C:/Users/autolab/Desktop/0.9.9.4_compiled/PythonAPI/carla/dist/carla-0.9.9-py3.7-win-amd64.egg')
 except IndexError:
     pass
 
