@@ -258,11 +258,6 @@ class traci_simulator:
         print("Received message on channel ", channel)
         msg = connect_request.decode(data)
         id = self.new_vehicle_event()
-        # 判断客户端是否为特殊车辆
-        if msg.is_special:
-            self.special_vehicle_ids[id] = True
-        else:
-            self.special_vehicle_ids[id] = False
         next_action = action_package()
         for i in range(self.message_waypoints_num):
             self.simulationStep()
@@ -316,12 +311,12 @@ class traci_simulator:
             end_pack.vehicle_id = msg.vehicle_id
             self.lc.publish(end_connection_keyword, end_pack.encode())
             return
-        # 如果当前车辆是特殊车辆，则获取所有邻近车辆的车道信息，并判断是否需要进行换道
-        if self.special_vehicle_ids[msg.vehicle_id] is True:
-            # 获取临近车辆信息，2代表010，即查询左侧、前侧的所有车辆
-            neighbor_list = traci.vehicle.getNeighbors(msg.vehicle_id, 2)
-            for (key, value) in neighbor_list:
-                print("key: ", key, "value: ", value)
+        # # 如果当前车辆是特殊车辆，则获取所有邻近车辆的车道信息，并判断是否需要进行换道
+        # if self.special_vehicle_ids[msg.vehicle_id] is True:
+        #     # 获取临近车辆信息，2代表010，即查询左侧、前侧的所有车辆
+        #     neighbor_list = traci.vehicle.getNeighbors(msg.vehicle_id, 2)
+        #     for (key, value) in neighbor_list:
+        #         print("key: ", key, "value: ", value)
         # 获取车辆在交通仿真场景的位置并根据客户端发来的报文进行更新
         try:
             # pass
