@@ -82,3 +82,16 @@ $ python Co-Simulation/client_main.py --is-manual=True
 # 手动控制的客户端按V键请求前方车辆避让
 ```
 
+
+
+## 5 其他
+
+### 5.1 根据OpenDrive路网文件自动生成SUMO仿真文件
+
+​	我们构建了输入OpenDrive文件、输出.sumocfg、.trip.xml等仿真文件的脚本程序，程序具体的构建可见`SUMOServer/generate_simulation.sh`文件。这一脚本程序目前仅能在Unix环境下运行，后续可将其重写为.bat格式的Windows脚本文件。
+
+​	然而，目前这一部分存在的问题是自动生成的旅程文件`.trip.xml`在实际的仿真过程中往往不能覆盖场景中全部的道路。对于这一问题，从`randomTrips.py`官方文档[randomTrips.py](https://sumo.dlr.de/docs/Tools/Trip.html)中找到了相关的说法：
+
+> This task is performed by the router. If the network is not fully connected some of the trips may be discarded.
+
+​	因此，这一部分还需要后续进一步的测试。

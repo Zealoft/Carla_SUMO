@@ -1,8 +1,9 @@
 #!/bin/bash
 # generate 100 vehicles and trips by default 
 # change num by change the value of vehicles_num
-# author: zwh
+# author: Zhang Wenhao
 echo "generate simulation files for sumo"
+echo "This shell script can automatically support *.osm file and *.xodr file."
 vehicles_num=100
 end_time=1000
 if [ $# == 2 ]
